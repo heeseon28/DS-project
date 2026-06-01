@@ -1,0 +1,17 @@
+# Build outputs
+*.o
+*.dSYM/
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Local executables
+dungeon_explorer
+ds_smoke_tests
+Game
+
+# macOS / editor noise
+.DS_Store
+tempCodeRunnerFile.cpp
