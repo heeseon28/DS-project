@@ -1,0 +1,8 @@
+# Optional map sketch for your report or future file-loading extension.
+# The starter project currently builds its sample world in Game::buildSampleWorld().
+# You may implement file loading as an extension.
+
+0|Entrance Hall|A cold stone hall lit by a blue torch.|east:1,south:2
+1|Library|Dusty books cover the walls.|west:0,south:3
+2|Armory|Broken shields and old spears are scattered here.|north:0,east:3
+3|Crystal Vault|A quiet chamber with a glowing crystal.|north:1,west:2
