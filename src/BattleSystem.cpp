@@ -55,10 +55,13 @@ namespace
     {
         const char *fileNames[] = {
             "bgm/battle_bgm.mp3",
+            "src/bgm/battle_bgm.mp3",
+            "battle_bgm.mp3",
             nullptr};
 
         const char *candidates[] = {
             "bgm/battle_bgm.mp3",
+            "src/bgm/battle_bgm.mp3",
             "./battle_bgm.mp3",
             "../battle_bgm.mp3"};
 
@@ -124,8 +127,6 @@ namespace
 
     void startBattleBgm()
     {
-        return;
-
 #if defined(__APPLE__)
         if (battleBgmLoopPid > 0)
         {
@@ -220,7 +221,12 @@ namespace
 
     void printPokemonSprite(const char *sprite)
     {
-        (void)sprite;
+        if (sprite == nullptr || sprite[0] == '\0')
+        {
+            return;
+        }
+
+        std::cout << sprite << "\n";
     }
 }
 

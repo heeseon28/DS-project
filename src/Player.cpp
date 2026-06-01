@@ -9,6 +9,10 @@ Player::Player(const std::string& name)
       x(1),
       y(20),
       stepsInCurrentRoom(0),
+      equippedWeaponName(""),
+      equippedArmorName(""),
+      equipmentAttackBonus(0),
+      equipmentDefenseBonus(0),
       inventory(),
       moveHistory() {}
 
@@ -113,6 +117,55 @@ bool Player::isAlive() const {
     return health > 0;
 }
 
+bool Player::equipItem(const std::string& itemName) {
+    const Item* item = inventory.findItem(itemName);
+    if (item == nullptr) {
+        std::cout << "'" << itemName << "' 아이템이 가방에 없습니다.\n";
+        return false;
+    }
+
+    if (!item->isEquipment()) {
+        std::cout << "'" << itemName << "'은(는) 장착할 수 없는 아이템입니다.\n";
+        return false;
+    }
+
+    if (item->getAttackBonus() > 0) {
+        equippedWeaponName = item->getName();
+        equipmentAttackBonus = item->getAttackBonus();
+    }
+
+    if (item->getDefenseBonus() > 0) {
+        equippedArmorName = item->getName();
+        equipmentDefenseBonus = item->getDefenseBonus();
+    }
+
+    std::cout << item->getName() << " 장착 완료!";
+    if (item->getAttackBonus() > 0) {
+        std::cout << " 공격 +" << item->getAttackBonus();
+    }
+    if (item->getDefenseBonus() > 0) {
+        std::cout << " 방어 +" << item->getDefenseBonus();
+    }
+    std::cout << "\n";
+    return true;
+}
+
+int Player::getEquipmentAttackBonus() const {
+    return equipmentAttackBonus;
+}
+
+int Player::getEquipmentDefenseBonus() const {
+    return equipmentDefenseBonus;
+}
+
+std::string Player::getEquippedWeaponName() const {
+    return equippedWeaponName;
+}
+
+std::string Player::getEquippedArmorName() const {
+    return equippedArmorName;
+}
+
 Inventory& Player::getInventory() {
     return inventory;
 }
@@ -123,7 +176,14 @@ const Inventory& Player::getInventory() const {
 
 void Player::printStatus() const {
     std::cout << "점수: " << score
+              << " | 체력: " << health
               << " | 위치: Room " << currentRoomId
               << " (" << x << ", " << y << ")"
               << " | 걸음: " << stepsInCurrentRoom << "\n";
+    std::cout << "장비: 무기 "
+              << (equippedWeaponName.empty() ? "없음" : equippedWeaponName)
+              << " (공격 +" << equipmentAttackBonus << ")"
+              << " | 방어구 "
+              << (equippedArmorName.empty() ? "없음" : equippedArmorName)
+              << " (방어 +" << equipmentDefenseBonus << ")\n";
 }

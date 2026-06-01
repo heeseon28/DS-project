@@ -1,5 +1,6 @@
 #include "Game.h"
 #include "BattleSystem.h"
+#include "ItemFactory.h"
 #include "PokemonFactory.h"
 #include "ds/Sorting.h"
 #include <cctype>
@@ -27,6 +28,8 @@ enum class InputAction
     Event,
     Battle,
     Pokedex,
+    Companion,
+    Equip,
     Quit
 };
 
@@ -148,6 +151,14 @@ GameInput decodeCharacter(char key)
     {
         return makeInput(InputAction::Pokedex);
     }
+    if (lower == 'c')
+    {
+        return makeInput(InputAction::Companion);
+    }
+    if (lower == 'g')
+    {
+        return makeInput(InputAction::Equip);
+    }
     if (lower == 'q')
     {
         return makeInput(InputAction::Quit);
@@ -239,10 +250,19 @@ Game::Game()
       encounterCount(0),
       itemSymbolCount(0),
       pokedexCount(0),
+      companionIndex(-1),
       running(true)
 {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
     buildSampleWorld();
+    for (int i = 0; i < 10; ++i)
+    {
+        player.getInventory().addItem(createItem("몬스터볼"));
+    }
+    for (int i = 0; i < 2; ++i)
+    {
+        player.getInventory().addItem(createItem("풀회복약"));
+    }
     seedScores();
 }
 
@@ -264,11 +284,12 @@ void Game::buildSampleWorld()
     dungeon.connectRoomsByGate(route1, 39, 10, safari, 1, 20);
     dungeon.connectRoomsByGate(safari, 0, 20, route1, 38, 10);
 
-    addRoomItem(pallet, 5, 20, Item("몬스터볼", "포켓몬을 포획할 때 사용하는 기본 도구.", 0));
-    addRoomItem(pallet, 8, 18, Item("풀회복약", "체력과 상태이상을 모두 회복시키는 약.", 100));
-    addRoomItem(route1, 5, 28, Item("갑옷", "방어력을 올려 줄 수 있는 장비.", 40));
-    addRoomItem(route1, 15, 25, Item("풀회복약", "체력과 상태이상을 모두 회복시키는 약.", 100));
-    addRoomItem(safari, 28, 18, Item("라이플", "공격력을 올려 줄 수 있는 장비.", 10));
+    addRoomItem(pallet, 5, 20, createItem("몬스터볼"));
+    addRoomItem(pallet, 8, 18, createItem("풀회복약"));
+    addRoomItem(pallet, 0, 0, createItem("라이플"));
+    addRoomItem(route1, 5, 28, createItem("갑옷"));
+    addRoomItem(route1, 15, 25, createItem("풀회복약"));
+    addRoomItem(safari, 28, 18, createItem("라이플"));
 
     addEncounterSymbol(route1, 8, 22, getRandomPokemonData().name, 'M');
     addEncounterSymbol(route1, 13, 18, getRandomPokemonData().name, 'M');
@@ -455,7 +476,7 @@ void Game::displayMap() const
     std::cout << "현재 위치: " << (room != nullptr ? room->getName() : "알 수 없음")
               << " (" << player.getX() << ", " << player.getY() << ")\n";
     std::cout << "P 플레이어 | M 몬스터 | I 아이템 | # 게이트\n";
-    std::cout << "방향키/WASD 이동 | T 줍기 | I 가방 | O 도감 | H 도움말 | Q 종료\n";
+    std::cout << "방향키/WASD 이동 | T 줍기 | I 가방 | G 장착 | C 동행 | O 도감 | H 도움말 | Q 종료\n";
 
     std::cout << '+';
     for (int x = 0; x < width; ++x)
@@ -484,6 +505,12 @@ void Game::displayMap() const
     std::cout << "점수: " << player.getScore()
               << " | 걸음: " << player.getSteps()
               << " | 현재 방 ID: " << player.getCurrentRoomId() << "\n";
+
+    const PokemonData* companion = getCompanionPokemon();
+    std::cout << "동행: "
+              << (companion == nullptr ? "없음" : companion->name)
+              << " | 장비 공격 +" << player.getEquipmentAttackBonus()
+              << " / 방어 +" << player.getEquipmentDefenseBonus() << "\n";
 }
 
 void Game::handleInput()
@@ -504,6 +531,11 @@ void Game::handleInput()
     {
         player.getInventory().print();
         waitForEnter();
+        return;
+    }
+    if (input.action == InputAction::Equip)
+    {
+        promptEquipItem();
         return;
     }
     if (input.action == InputAction::Take)
@@ -555,6 +587,11 @@ void Game::handleInput()
         showPokedex();
         return;
     }
+    if (input.action == InputAction::Companion)
+    {
+        showCompanionMenu();
+        return;
+    }
     if (input.action == InputAction::Quit)
     {
         running = false;
@@ -567,8 +604,9 @@ void Game::printHelp() const
     clearScreen();
     std::cout << "[도움말]\n";
     std::cout << "방향키 또는 WASD : 40x40 맵에서 한 칸 이동\n";
-    std::cout << "C 심볼 접촉       : 해당 포켓몬과 배틀 시작\n";
+    std::cout << "M 심볼 접촉       : 해당 포켓몬과 배틀 시작\n";
     std::cout << "I                 : 인벤토리 확인\n";
+    std::cout << "G                 : 가방의 장비 아이템 장착\n";
     std::cout << "T                 : 현재 지역의 아이템 줍기\n";
     std::cout << "U                 : 이전 위치로 되돌리기\n";
     std::cout << "P                 : 플레이어 상태 확인\n";
@@ -576,6 +614,7 @@ void Game::printHelp() const
     std::cout << "E                 : 대기 중인 이벤트 처리\n";
     std::cout << "B                 : 테스트 배틀 시작\n";
     std::cout << "O                 : 잡은 포켓몬 도감 보기 / 도감 번호 순 정렬\n";
+    std::cout << "C                 : 동행 포켓몬 확인 / 변경\n";
     std::cout << "Q                 : 게임 종료\n";
     waitForEnter();
 }
@@ -645,6 +684,64 @@ void Game::showPokedex() const
     waitForEnter();
 }
 
+void Game::showCompanionMenu()
+{
+    clearScreen();
+    std::cout << "[동행 포켓몬]\n";
+
+    if (pokedexCount == 0)
+    {
+        std::cout << "아직 동행할 포켓몬이 없습니다. 포획에 성공하면 자동으로 동행 후보에 추가됩니다.\n";
+        waitForEnter();
+        return;
+    }
+
+    for (int i = 0; i < pokedexCount; ++i)
+    {
+        const PokemonData* data = pokedex[i].data;
+        if (data == nullptr)
+        {
+            continue;
+        }
+
+        std::cout << (i + 1) << ". " << data->name
+                  << " HP " << data->maxHp
+                  << " 공격 " << data->attack
+                  << " 방어 " << data->defense
+                  << " 속도 " << data->speed;
+
+        if (i == companionIndex)
+        {
+            std::cout << " [현재 동행]";
+        }
+
+        std::cout << "\n";
+    }
+
+    std::cout << "0. 변경하지 않기\n";
+    std::cout << "선택: ";
+
+    std::string choice;
+    std::getline(std::cin, choice);
+
+    int selected = std::atoi(choice.c_str());
+    if (selected == 0)
+    {
+        return;
+    }
+
+    if (selected < 1 || selected > pokedexCount || pokedex[selected - 1].data == nullptr)
+    {
+        std::cout << "올바르지 않은 선택입니다.\n";
+        waitForEnter();
+        return;
+    }
+
+    companionIndex = selected - 1;
+    std::cout << pokedex[companionIndex].data->name << "을(를) 동행 포켓몬으로 설정했습니다.\n";
+    waitForEnter();
+}
+
 void Game::printPokedexEntries(const PokedexEntry* entries, int count) const
 {
     for (int i = 0; i < count; ++i)
@@ -687,12 +784,26 @@ void Game::recordCaughtPokemon(const PokemonData* data)
         return;
     }
 
-    pokedex[pokedexCount].data = data;
-    pokedex[pokedexCount].caughtOrder = pokedexCount + 1;
+    int newEntryIndex = pokedexCount;
+    pokedex[newEntryIndex].data = data;
+    pokedex[newEntryIndex].caughtOrder = pokedexCount + 1;
     ++pokedexCount;
 
     std::cout << data->name << "이(가) 도감에 추가되었습니다. 현재 도감: "
               << pokedexCount << "마리\n";
+
+    companionIndex = newEntryIndex;
+    std::cout << data->name << "이(가) 동행 포켓몬으로 함께합니다.\n";
+}
+
+const PokemonData* Game::getCompanionPokemon() const
+{
+    if (companionIndex < 0 || companionIndex >= pokedexCount)
+    {
+        return nullptr;
+    }
+
+    return pokedex[companionIndex].data;
 }
 
 void Game::look() const
@@ -810,6 +921,7 @@ void Game::takeItem(const std::string& itemName)
         itemSymbol->active = false;
     }
     player.addScore(item.getValue());
+    printItemSprite(item.getName());
     std::cout << "획득: ";
     item.print();
 }
@@ -838,6 +950,24 @@ void Game::promptTakeItem()
     waitForEnter();
 }
 
+void Game::promptEquipItem()
+{
+    clearScreen();
+    player.getInventory().print();
+    std::cout << "\n장착할 아이템 이름을 입력하세요 (취소: Enter): ";
+
+    std::string itemName;
+    std::getline(std::cin, itemName);
+
+    if (itemName.empty())
+    {
+        return;
+    }
+
+    player.equipItem(itemName);
+    waitForEnter();
+}
+
 bool Game::startPokemonBattle(const std::string& pokemonName)
 {
     const PokemonData* pokemonData = findPokemonData(pokemonName);
@@ -849,14 +979,43 @@ bool Game::startPokemonBattle(const std::string& pokemonName)
 
     int monsterBalls = player.getInventory().countItem("몬스터볼");
     int fullHeals = player.getInventory().countItem("풀회복약");
+    const PokemonData* companion = getCompanionPokemon();
+
+    std::string battleName = "플레이어";
+    int maxHp = 100;
+    int attack = 15;
+    int defense = 8;
+    int speed = 10;
+    ElementType element = ElementType::Water;
+
+    if (companion != nullptr)
+    {
+        battleName = companion->name;
+        maxHp = companion->maxHp;
+        attack = companion->attack;
+        defense = companion->defense;
+        speed = companion->speed;
+        element = companion->element;
+        std::cout << "[동행] " << companion->name << "이(가) 전투에 나섭니다!\n";
+    }
+
+    attack += player.getEquipmentAttackBonus();
+    defense += player.getEquipmentDefenseBonus();
+
+    if (player.getEquipmentAttackBonus() > 0 || player.getEquipmentDefenseBonus() > 0)
+    {
+        std::cout << "[장비] 공격 +" << player.getEquipmentAttackBonus()
+                  << " / 방어 +" << player.getEquipmentDefenseBonus()
+                  << " 효과가 적용됩니다.\n";
+    }
 
     PlayerBattle playerBattle(
-        "플레이어",
-        100,
-        15,
-        8,
-        10,
-        ElementType::Water,
+        battleName,
+        maxHp,
+        attack,
+        defense,
+        speed,
+        element,
         monsterBalls,
         fullHeals);
     EnemyBattle enemy = createEnemyBattle(*pokemonData);

@@ -22,6 +22,10 @@ private:
     int x;
     int y;
     int stepsInCurrentRoom;
+    std::string equippedWeaponName;
+    std::string equippedArmorName;
+    int equipmentAttackBonus;
+    int equipmentDefenseBonus;
     Inventory inventory;
     Stack<MoveRecord> moveHistory;
 
@@ -46,6 +50,11 @@ public:
     void addScore(int amount);
     void changeHealth(int delta);
     bool isAlive() const;
+    bool equipItem(const std::string& itemName);
+    int getEquipmentAttackBonus() const;
+    int getEquipmentDefenseBonus() const;
+    std::string getEquippedWeaponName() const;
+    std::string getEquippedArmorName() const;
 
     Inventory& getInventory();
     const Inventory& getInventory() const;

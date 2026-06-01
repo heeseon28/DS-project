@@ -50,6 +50,7 @@ private:
     int encounterCount;
     int itemSymbolCount;
     int pokedexCount;
+    int companionIndex;
     bool running;
 
     void buildSampleWorld();
@@ -67,14 +68,17 @@ private:
     void handleInput();
     void printHelp() const;
     void showPokedex() const;
+    void showCompanionMenu();
     void printPokedexEntries(const PokedexEntry* entries, int count) const;
     void recordCaughtPokemon(const PokemonData* data);
+    const PokemonData* getCompanionPokemon() const;
     void look() const;
     void move(Direction direction);
     void undoMove();
     void removeInventoryItems(const std::string& itemName, int count);
     void takeItem(const std::string& itemName);
     void promptTakeItem();
+    void promptEquipItem();
     bool startPokemonBattle(const std::string& pokemonName);
     void startEncounterBattle(EncounterSymbol& encounter);
     void processOneEvent();

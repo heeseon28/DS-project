@@ -1,5 +1,7 @@
 #include "Direction.h"
 #include "Item.h"
+#include "ItemFactory.h"
+#include "Player.h"
 #include "ds/DungeonGraph.h"
 #include "ds/Inventory.h"
 #include "ds/Queue.h"
@@ -8,6 +10,7 @@
 #include "ds/Stack.h"
 #include <cassert>
 #include <iostream>
+#include <sstream>
 
 void testInventory() {
     Inventory inventory;
@@ -17,6 +20,36 @@ void testInventory() {
     assert(inventory.findItem("key") != nullptr);
     assert(inventory.removeItem("key"));
     assert(inventory.isEmpty());
+}
+
+void testEquipment() {
+    Player player("tester");
+    player.getInventory().addItem(Item("rifle", "boosts attack", 10, 8, 0));
+    player.getInventory().addItem(Item("armor", "boosts defense", 40, 0, 6));
+
+    std::ostringstream outputSink;
+    std::streambuf* originalOutput = std::cout.rdbuf(outputSink.rdbuf());
+
+    assert(player.equipItem("rifle"));
+    assert(player.getEquipmentAttackBonus() == 8);
+    assert(player.getEquipmentDefenseBonus() == 0);
+
+    assert(player.equipItem("armor"));
+    assert(player.getEquipmentAttackBonus() == 8);
+    assert(player.getEquipmentDefenseBonus() == 6);
+    assert(!player.equipItem("key"));
+
+    std::cout.rdbuf(originalOutput);
+}
+
+void testItemFactory() {
+    Item rifle = createItem("라이플");
+    Item armor = createItem("갑옷");
+
+    assert(rifle.getAttackBonus() == 8);
+    assert(rifle.getDefenseBonus() == 0);
+    assert(armor.getAttackBonus() == 0);
+    assert(armor.getDefenseBonus() == 6);
 }
 
 void testStack() {
@@ -78,6 +111,8 @@ void testScoreTree() {
 int main() {
     std::cout << "Running smoke tests.\n";
     testInventory();
+    testEquipment();
+    testItemFactory();
     testStack();
     testQueue();
     testGraph();
