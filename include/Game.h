@@ -9,6 +9,7 @@
 #include "ds/ScoreTree.h"
 #include "ds/Stack.h"
 #include <string>
+#include <vector>
 
 struct PokemonData;
 
@@ -40,6 +41,15 @@ private:
         int caughtOrder;
     };
 
+    struct GateRecord {
+        int roomId;
+        int x;
+        int y;
+        int targetRoomId;
+        int targetX;
+        int targetY;
+    };
+
     DungeonGraph dungeon;
     Player player;
     Queue<GameEvent> eventQueue;
@@ -47,6 +57,7 @@ private:
     EncounterSymbol encounters[MAX_ENCOUNTERS];
     ItemSymbol itemSymbols[MAX_ITEM_SYMBOLS];
     PokedexEntry pokedex[MAX_POKEDEX];
+    std::vector<GateRecord> gateRecords;
     int encounterCount;
     int itemSymbolCount;
     int pokedexCount;

@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
+#include <algorithm>
 #include <limits>
 #include <string>
 #include <termios.h>
@@ -270,8 +271,10 @@ void Game::buildSampleWorld()
 {
     int pallet = dungeon.addRoom("태초마을", "모험이 시작되는 평화로운 마을이다.", 0, -1);
     int route1 = dungeon.addRoom("1번 도로", "야생 포켓몬이 모습을 드러내는 풀숲 길이다.", 30, -1);
-    int viridian = dungeon.addRoom("상록시티", "체육관으로 이어지는 조용한 도시다.", 0, 20);
-    int safari = dungeon.addRoom("사파리존", "희귀한 포켓몬과 아이템이 숨어 있는 넓은 구역이다.", 50, -1);
+        // 이벤트 트리거를 제거: 걸음 기반 자동 이벤트를 비활성화합니다.
+        int viridian = dungeon.addRoom("상록시티", "체육관으로 이어지는 조용한 도시다.", 0, -1);
+        int viridianGym = dungeon.addRoom("상록시티 체육관", "상록시티의 정식 체육관입니다.", 0, -1);
+        int safari = dungeon.addRoom("사파리존", "희귀한 포켓몬과 아이템이 숨어 있는 넓은 구역이다.", 50, -1);
 
     dungeon.connectRooms(pallet, Direction::North, route1, true);
     dungeon.connectRooms(route1, Direction::North, viridian, true);
@@ -300,8 +303,98 @@ void Game::buildSampleWorld()
     addEncounterSymbol(safari, 32, 28, getRandomPokemonData().name, 'M');
     addEncounterSymbol(viridian, 18, 18, getRandomPokemonData().name, 'M');
 
-    eventQueue.enqueue(GameEvent("상록시티 체육관 앞에서 낯선 기척이 느껴진다.", 10, 0));
-    eventQueue.enqueue(GameEvent("길가의 표지판에서 포켓몬 배틀 팁을 발견했다.", 5, 0));
+    // 체육관 입구: 빌딩 바로 아래에 게이트('#')가 보이도록 데코를 배치하고 게이트 연결
+    int gateX = 20;
+    int gateY_hint = 35; // 시각적 힌트용(초기 값). 실제 게이트 Y는 데코 배치 후 visualEntranceY로 등록합니다.
+
+    // 상록시티 쪽에 대형 체육관 데코 배치 (사용자 요청 ASCII 스타일, 입구는 building 아래 entranceY)
+    const int cx = gateX;
+    Room* vroom = dungeon.getRoom(viridian);
+    int visualEntranceY = -1;
+    if (vroom != nullptr) {
+        int roomW = vroom->getWidth();
+        int innerWidth = 17; // inner width between vertical borders
+        int totalWidth = innerWidth + 2; // including side borders
+        int left = std::max(0, cx - totalWidth/2);
+        int right = left + totalWidth - 1;
+        if (right >= roomW) { right = roomW - 1; left = right - totalWidth + 1; if (left < 0) left = 0; }
+
+        int entranceY = gateY;      // row where '#' (gate) appears
+        // rows - rows[0]이 y=top(화면 아래), rows[마지막]이 y=top+N(화면 위)가 되도록
+        std::vector<std::string> rows;
+        // entrance at rows[0] (화면 맨 아래)
+        // NOTE: 원래 문자열에 '#'이 들어가면 빌딩 내부에 여러 '#'가 찍힐 수 있음.
+        // 따라서 문자열에는 '#'을 넣지 않고, 입구는 아래에서 한 위치만 '#'으로 설정한다.
+        rows.push_back(std::string("+") + std::string(17, '=') + "+");
+        rows.push_back(std::string("+") + std::string(innerWidth, '-') + "+");
+        for (int i = 0; i < 8; ++i) rows.push_back(std::string("|") + std::string(innerWidth, '.') + "|");
+        rows.push_back(std::string("|") + std::string(7, '.') + "GYM" + std::string(7, '.') + "|");
+        rows.push_back(std::string("/") + std::string(innerWidth, '=') + "\\");
+        // roof at rows[마지막] (화면 맨 위)
+        rows.push_back(std::string("+") + std::string(7, '=') + "/=\\" + std::string(7, '=') + "+");
+
+        // 화면 아래쪽에서부터 배치
+        int top = vroom->getHeight() - (int)rows.size();
+        if (top < 0) top = 0;
+
+        for (int ry = 0; ry < (int)rows.size(); ++ry) {
+            int y = top + ry;
+            const std::string& line = rows[ry];
+            for (int j = 0; j < (int)line.size(); ++j) {
+                int x = left + j;
+                        if (x >= 0 && x < roomW && y >= 0 && y < vroom->getHeight()) {
+                            char c = line[j];
+                            if (c != ' ') vroom->setDecoration(x, y, c);
+                        }
+            }
+        }
+        // 입구 행의 실제 y 좌표 (rows[0]이 top에 배치되므로)
+        visualEntranceY = top;
+        if (gateX >= 0 && gateX < roomW && visualEntranceY >= 0 && visualEntranceY < vroom->getHeight()) {
+            vroom->setDecoration(gateX, visualEntranceY, '#');
+        }
+        // 빌딩 내부에 의도치 않게 남은 다른 '#'을 제거하고, 입구 '#'만 남김
+        for (int yy = top; yy <= top + (int)rows.size() - 1; ++yy) {
+            for (int xx = left; xx <= left + (int)rows[0].size() - 1; ++xx) {
+                if (xx < 0 || xx >= roomW || yy < 0 || yy >= vroom->getHeight()) continue;
+                char dc = vroom->getDecoration(xx, yy);
+                if (dc == '#') {
+                    if (!(xx == gateX && yy == visualEntranceY)) {
+                        // 상단의 잘못된 '#'은 '=', '-' 또는 '.'로 대체
+                        // 여기서는 주변 장식과 어울리도록 '='로 바꿉니다.
+                        vroom->setDecoration(xx, yy, '=');
+                    }
+                }
+            }
+        }
+
+            // 이제 실제로 시각적 입구 위치(visualEntranceY)를 사용해 던전 게이트를 등록합니다.
+            // 이전에 사용하던 gateY_hint와 달리, 여기서는 정확한 y 좌표를 매핑합니다.
+            dungeon.connectRoomsByGate(viridian, gateX, visualEntranceY, viridianGym, gateX, 0);
+            dungeon.connectRoomsByGate(viridianGym, gateX, 0, viridian, gateX, visualEntranceY);
+            gateRecords.push_back({viridian, gateX, visualEntranceY, viridianGym, gateX, 0});
+            gateRecords.push_back({viridianGym, gateX, 0, viridian, gateX, visualEntranceY});
+    }
+
+    // 상록시티 체육관(viridianGym) 룸 중앙에 체육관 NPC 심볼 'G' 추가
+    Room* gymRoom = dungeon.getRoom(viridianGym);
+    if (gymRoom != nullptr) {
+        int gx = gymRoom->getWidth() / 2;
+        int gy = gymRoom->getHeight() / 2;
+        addEncounterSymbol(viridianGym, gx, gy, "GYM_LEADER", 'G');
+    }
+
+    // 디버그: 게이트 좌표와 던전의 게이트 체크 결과를 출력
+    {
+        int outR=-1, outX=-1, outY=-1;
+        bool hasGate = dungeon.checkGate(viridian, gateX, visualEntranceY, outR, outX, outY);
+        std::cout << "[DEBUG] viridian gate at (" << gateX << "," << visualEntranceY << ") -> ";
+        if (hasGate) {
+            std::cout << "maps to room " << outR << " at (" << outX << "," << outY << ")\n";
+        } else {
+            std::cout << "NO_GATE_FOUND\n";
+        }
+    }
 }
 
 void Game::seedScores()
@@ -356,6 +449,7 @@ Game::ItemSymbol* Game::findItemAt(int roomId, int x, int y)
 
     return nullptr;
 }
+
 
 const Game::ItemSymbol* Game::findItemAt(int roomId, int x, int y) const
 {
@@ -447,6 +541,17 @@ char Game::tileAt(int roomId, int x, int y) const
         return 'I';
     }
 
+    // Decorations (walls/building art) — show decoration char if present.
+    const Room* decoRoom = dungeon.getRoom(roomId);
+    if (decoRoom != nullptr)
+    {
+        char deco = decoRoom->getDecoration(x, y);
+        if (deco != '\0')
+        {
+            return deco;
+        }
+    }
+
     return ' ';
 }
 
@@ -475,7 +580,7 @@ void Game::displayMap() const
 
     std::cout << "현재 위치: " << (room != nullptr ? room->getName() : "알 수 없음")
               << " (" << player.getX() << ", " << player.getY() << ")\n";
-    std::cout << "P 플레이어 | M 몬스터 | I 아이템 | # 게이트\n";
+    std::cout << "P 플레이어 | M 몬스터 | G 체육관 | I 아이템 | # 게이트\n";
     std::cout << "방향키/WASD 이동 | T 줍기 | I 가방 | G 장착 | C 동행 | O 도감 | H 도움말 | Q 종료\n";
 
     std::cout << '+';
@@ -832,9 +937,53 @@ void Game::move(Direction direction)
     int oldX = player.getX();
     int oldY = player.getY();
 
+    // 먼저 다음 좌표를 계산하고, 게이트가 아닌 경우 데코(벽)인지 확인
+    int proposedX = player.getX() + getDeltaX(direction);
+    int proposedY = player.getY() + getDeltaY(direction);
+
+    // 경계 체크
+    if (proposedX < 0 || proposedX >= room->getWidth() || proposedY < 0 || proposedY >= room->getHeight()) {
+        std::cout << "벽에 부딪혔습니다. 더 이상 이동할 수 없습니다.\n";
+        return;
+    }
+
+    int tgtRoom = -1, tgtX = -1, tgtY = -1;
+    bool isGate = dungeon.checkGate(player.getCurrentRoomId(), proposedX, proposedY, tgtRoom, tgtX, tgtY);
+    if (!isGate) {
+        // fallback: check our recorded gates (in case of mismatch between visual deco and DungeonGraph)
+        // Debug: if there's a '#' decoration here but no gate found, print info to help diagnose
+        const Room* debugRoom = dungeon.getRoom(player.getCurrentRoomId());
+        if (debugRoom != nullptr) {
+            char decoHere = debugRoom->getDecoration(proposedX, proposedY);
+            if (decoHere == '#') {
+                std::cout << "[DEBUG] Stepping onto '#' at (" << proposedX << "," << proposedY << ") in room " << player.getCurrentRoomId() << " but checkGate returned false.\n";
+                // print recorded gates for this room
+                for (const auto& gr : gateRecords) {
+                    if (gr.roomId == player.getCurrentRoomId()) {
+                        std::cout << "[DEBUG] recorded gate: (" << gr.x << "," << gr.y << ") -> room " << gr.targetRoomId << " at (" << gr.targetX << "," << gr.targetY << ")\n";
+                    }
+                }
+            }
+        }
+        for (const auto& gr : gateRecords) {
+            if (gr.roomId == player.getCurrentRoomId() && gr.x == proposedX && gr.y == proposedY) {
+                isGate = true;
+                tgtRoom = gr.targetRoomId;
+                tgtX = gr.targetX;
+                tgtY = gr.targetY;
+                break;
+            }
+        }
+
+        if (!isGate && room->isBlocked(proposedX, proposedY)) {
+            std::cout << "벽에 부딪혔습니다. 더 이상 이동할 수 없습니다.\n";
+            return;
+        }
+    }
+
     if (!player.move(direction, room->getWidth(), room->getHeight()))
     {
-        waitForEnter();
+        // player.move already prints a message for out-of-bounds; don't wait for Enter
         return;
     }
 
@@ -844,8 +993,19 @@ void Game::move(Direction direction)
     int nextRoomId = -1;
     int nextX = -1;
     int nextY = -1;
-    if (dungeon.checkGate(player.getCurrentRoomId(), player.getX(), player.getY(), nextRoomId, nextX, nextY))
-    {
+    if (!dungeon.checkGate(player.getCurrentRoomId(), player.getX(), player.getY(), nextRoomId, nextX, nextY)) {
+        // fallback: search recorded gates
+        for (const auto& gr : gateRecords) {
+            if (gr.roomId == player.getCurrentRoomId() && gr.x == player.getX() && gr.y == player.getY()) {
+                nextRoomId = gr.targetRoomId;
+                nextX = gr.targetX;
+                nextY = gr.targetY;
+                break;
+            }
+        }
+    }
+
+    if (nextRoomId != -1) {
         player.setCurrentRoomId(nextRoomId);
         player.setPosition(nextX, nextY);
         player.resetSteps();
@@ -859,14 +1019,7 @@ void Game::move(Direction direction)
         return;
     }
 
-    const Room* currentRoom = dungeon.getRoom(player.getCurrentRoomId());
-    if (currentRoom != nullptr &&
-        currentRoom->getEventTriggerStep() != -1 &&
-        player.getSteps() >= currentRoom->getEventTriggerStep())
-    {
-        std::cout << "\n[이벤트] 이 지역에서 충분히 이동했습니다. E 키로 이벤트를 확인할 수 있습니다.\n";
-        waitForEnter();
-    }
+    // Removed automatic step-based event notification per user request.
 }
 
 void Game::undoMove()

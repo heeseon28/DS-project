@@ -5,6 +5,7 @@
 #include "Monster.h"
 #include "ds/DynamicArray.h"
 #include <string>
+#include <vector>
 
 class Room {
 private:
@@ -18,6 +19,7 @@ private:
     int height;
     int encounterRate;
     int eventTriggerStep;
+    std::vector<char> decorations;
 
 public:
     Room();
@@ -49,6 +51,11 @@ public:
     int getHeight() const;
     int getEncounterRate() const;
     int getEventTriggerStep() const;
+
+    // Decoration / blocked tile support
+    void setDecoration(int x, int y, char c);
+    char getDecoration(int x, int y) const;
+    bool isBlocked(int x, int y) const;
 
     void printDescription() const;
 };

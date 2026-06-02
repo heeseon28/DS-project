@@ -1,5 +1,6 @@
 #include "Room.h"
 #include <iostream>
+#include <algorithm>
 
 Room::Room()
     : id(-1),
@@ -32,6 +33,28 @@ Room::Room(
       height(40),
       encounterRate(encounterRate),
       eventTriggerStep(eventTriggerStep) {}
+
+// Decoration grid helpers
+void Room::setDecoration(int x, int y, char c)
+{
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    if (decorations.empty()) decorations.assign(width * height, '\0');
+    decorations[y * width + x] = c;
+}
+
+char Room::getDecoration(int x, int y) const
+{
+    if (x < 0 || x >= width || y < 0 || y >= height) return '\0';
+    if (decorations.empty()) return '\0';
+    return decorations[y * width + x];
+}
+
+bool Room::isBlocked(int x, int y) const
+{
+    if (x < 0 || x >= width || y < 0 || y >= height) return true;
+    if (decorations.empty()) return false;
+    return decorations[y * width + x] != '\0';
+}
 
 int Room::getId() const {
     return id;
