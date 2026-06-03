@@ -905,15 +905,15 @@ bool BattleSystem::startBattle(PlayerBattle &player, EnemyBattle &enemy)
     startBattleBgm();
 
     const PokemonData *pokemonData = findPokemonData(enemy.getName());
-    if (pokemonData != nullptr)
-    {
-        printPokemonSprite(pokemonData->sprite);
-    }
-
     std::cout << "\n야생의 " << enemy.getName() << " 등장!\n";
 
     while (player.isAlive() && enemy.isAlive())
     {
+        if (pokemonData != nullptr)
+        {
+            printPokemonSprite(pokemonData->sprite);
+        }
+
         std::cout << "\n[전투] "
                   << player.getName() << " HP " << player.getHp() << "/" << player.getMaxHp()
                   << " | "

@@ -32,7 +32,7 @@ public:
     bool isEmpty() const;
     int size() const;
     void clear();
-    void print() const;
+    void print(const std::string& equippedWeapon = "", const std::string& equippedArmor = "", bool sorted = false) const;
 };
 
 #endif

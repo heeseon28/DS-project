@@ -1,6 +1,7 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include "BattleSystem.h"
 #include "GameEvent.h"
 #include "Item.h"
 #include "Player.h"
@@ -32,7 +33,7 @@ private:
         bool active;
     };
 
-    static const int MAX_ENCOUNTERS = 8;
+    static const int MAX_ENCOUNTERS = 32;
     static const int MAX_ITEM_SYMBOLS = 16;
     static const int MAX_POKEDEX = 128;
 
@@ -63,11 +64,19 @@ private:
     int pokedexCount;
     int companionIndex;
     bool running;
+    int roomIdRoute1;
+    int roomIdSafari;
+    ElementType playerElement;
 
     void buildSampleWorld();
     void seedScores();
+    void choosePlayerElement();
+    void computeElementBuffs(int& outAtk, int& outDef, int& outSpd) const;
     void addRoomItem(int roomId, int x, int y, const Item& item);
+    void addRandomRoomItem(int roomId, const std::vector<std::string>& pool, int spawnChancePercent = 70);
     void addEncounterSymbol(int roomId, int x, int y, const char* pokemonName, char symbol);
+    void addRandomEncounterSymbol(int roomId, bool safariRates = false);
+    void resetRoomEncounters(int roomId, int count, bool safariRates = false);
     ItemSymbol* findItemAt(int roomId, int x, int y);
     const ItemSymbol* findItemAt(int roomId, int x, int y) const;
     ItemSymbol* findItemSymbol(int roomId, const std::string& itemName);

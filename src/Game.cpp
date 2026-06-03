@@ -252,9 +252,13 @@ Game::Game()
       itemSymbolCount(0),
       pokedexCount(0),
       companionIndex(-1),
-      running(true)
+      running(true),
+      roomIdRoute1(-1),
+      roomIdSafari(-1),
+      playerElement(ElementType::Water)
 {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    choosePlayerElement();
     buildSampleWorld();
     for (int i = 0; i < 10; ++i)
     {
@@ -267,6 +271,76 @@ Game::Game()
     seedScores();
 }
 
+void Game::computeElementBuffs(int& outAtk, int& outDef, int& outSpd) const
+{
+    outAtk = 0; outDef = 0; outSpd = 0;
+
+    int pAtk = 0, pDef = 0, pSpd = 0;
+    switch (playerElement)
+    {
+        case ElementType::Water:    pDef = 3; break;
+        case ElementType::Fire:     pAtk = 3; break;
+        case ElementType::Grass:    pAtk = 2; pDef = 2; break;
+        case ElementType::Electric: pSpd = 3; break;
+        case ElementType::Ground:   pDef = 4; break;
+    }
+
+    const PokemonData* companion = getCompanionPokemon();
+    int cAtk = 0, cDef = 0, cSpd = 0;
+    if (companion != nullptr)
+    {
+        switch (companion->element)
+        {
+            case ElementType::Water:    cDef = companion->defense / 10; break;
+            case ElementType::Fire:     cAtk = companion->attack  / 10; break;
+            case ElementType::Grass:    cAtk = companion->attack  / 10;
+                                        cDef = companion->defense / 10; break;
+            case ElementType::Electric: cSpd = companion->speed   / 10; break;
+            case ElementType::Ground:   cDef = companion->defense / 10; break;
+        }
+
+        if (playerElement == companion->element)
+        {
+            auto doublelarge = [](int& a, int& b) {
+                if (a >= b) { a *= 2; b = 0; }
+                else        { b *= 2; a = 0; }
+            };
+            if (pAtk > 0 || cAtk > 0) doublelarge(pAtk, cAtk);
+            if (pDef > 0 || cDef > 0) doublelarge(pDef, cDef);
+            if (pSpd > 0 || cSpd > 0) doublelarge(pSpd, cSpd);
+        }
+    }
+
+    outAtk = pAtk + cAtk;
+    outDef = pDef + cDef;
+    outSpd = pSpd + cSpd;
+}
+
+void Game::choosePlayerElement()
+{
+    std::cout << "=== 속성 선택 ===\n";
+    std::cout << "1. 물    → 방어 +3\n";
+    std::cout << "2. 불    → 공격 +3\n";
+    std::cout << "3. 풀    → 공격 +2, 방어 +2\n";
+    std::cout << "4. 전기  → 속도 +3\n";
+    std::cout << "5. 땅    → 방어 +4\n";
+    std::cout << "> ";
+
+    std::string input;
+    while (true)
+    {
+        if (!(std::cin >> input)) break;
+        if      (input == "1") { playerElement = ElementType::Water;    break; }
+        else if (input == "2") { playerElement = ElementType::Fire;     break; }
+        else if (input == "3") { playerElement = ElementType::Grass;    break; }
+        else if (input == "4") { playerElement = ElementType::Electric; break; }
+        else if (input == "5") { playerElement = ElementType::Ground;   break; }
+        else std::cout << "1~5 중 하나를 입력하세요: ";
+    }
+    std::cout << elementToKorean(playerElement) << " 속성을 선택했습니다!\n";
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+}
+
 void Game::buildSampleWorld()
 {
     int pallet = dungeon.addRoom("태초마을", "모험이 시작되는 평화로운 마을이다.", 0, -1);
@@ -275,6 +349,8 @@ void Game::buildSampleWorld()
         int viridian = dungeon.addRoom("상록시티", "체육관으로 이어지는 조용한 도시다.", 0, -1);
         int viridianGym = dungeon.addRoom("상록시티 체육관", "상록시티의 정식 체육관입니다.", 0, -1);
         int safari = dungeon.addRoom("사파리존", "희귀한 포켓몬과 아이템이 숨어 있는 넓은 구역이다.", 50, -1);
+    roomIdRoute1 = route1;
+    roomIdSafari = safari;
 
     dungeon.connectRooms(pallet, Direction::North, route1, true);
     dungeon.connectRooms(route1, Direction::North, viridian, true);
@@ -291,21 +367,16 @@ void Game::buildSampleWorld()
     addRoomItem(pallet, 8, 18, createItem("풀회복약"));
     addRoomItem(pallet, 0, 0, createItem("라이플"));
     addRoomItem(route1, 5, 28, createItem("갑옷"));
-    addRoomItem(route1, 15, 25, createItem("풀회복약"));
-    addRoomItem(safari, 28, 18, createItem("라이플"));
+    addRandomRoomItem(route1, {"몬스터볼", "풀회복약"});
+    addRandomRoomItem(safari, {"몬스터볼", "풀회복약"});
+    addRandomRoomItem(viridian, {"몬스터볼", "풀회복약"});
 
-    addEncounterSymbol(route1, 8, 22, getRandomPokemonData().name, 'M');
-    addEncounterSymbol(route1, 13, 18, getRandomPokemonData().name, 'M');
-    addEncounterSymbol(route1, 22, 29, getRandomPokemonData().name, 'M');
-    addEncounterSymbol(route1, 31, 12, getRandomPokemonData().name, 'M');
-    addEncounterSymbol(safari, 9, 9, getRandomPokemonData().name, 'M');
-    addEncounterSymbol(safari, 20, 20, getRandomPokemonData().name, 'M');
-    addEncounterSymbol(safari, 32, 28, getRandomPokemonData().name, 'M');
+    for (int i = 0; i < 5; ++i)  addRandomEncounterSymbol(route1);
+    for (int i = 0; i < 10; ++i) addRandomEncounterSymbol(safari, true);
     addEncounterSymbol(viridian, 18, 18, getRandomPokemonData().name, 'M');
 
     // 체육관 입구: 빌딩 바로 아래에 게이트('#')가 보이도록 데코를 배치하고 게이트 연결
     int gateX = 20;
-    int gateY_hint = 35; // 시각적 힌트용(초기 값). 실제 게이트 Y는 데코 배치 후 visualEntranceY로 등록합니다.
 
     // 상록시티 쪽에 대형 체육관 데코 배치 (사용자 요청 ASCII 스타일, 입구는 building 아래 entranceY)
     const int cx = gateX;
@@ -319,7 +390,6 @@ void Game::buildSampleWorld()
         int right = left + totalWidth - 1;
         if (right >= roomW) { right = roomW - 1; left = right - totalWidth + 1; if (left < 0) left = 0; }
 
-        int entranceY = gateY;      // row where '#' (gate) appears
         // rows - rows[0]이 y=top(화면 아래), rows[마지막]이 y=top+N(화면 위)가 되도록
         std::vector<std::string> rows;
         // entrance at rows[0] (화면 맨 아래)
@@ -423,6 +493,20 @@ void Game::addRoomItem(int roomId, int x, int y, const Item& item)
     ++itemSymbolCount;
 }
 
+void Game::addRandomRoomItem(int roomId, const std::vector<std::string>& pool, int spawnChancePercent)
+{
+    if (pool.empty()) return;
+    if ((std::rand() % 100) >= spawnChancePercent) return;
+
+    Room* room = dungeon.getRoom(roomId);
+    if (room == nullptr) return;
+
+    int x = 1 + std::rand() % (room->getWidth()  - 2);
+    int y = 1 + std::rand() % (room->getHeight() - 2);
+    const std::string& itemName = pool[std::rand() % pool.size()];
+    addRoomItem(roomId, x, y, createItem(itemName));
+}
+
 void Game::addEncounterSymbol(int roomId, int x, int y, const char* pokemonName, char symbol)
 {
     if (encounterCount >= MAX_ENCOUNTERS)
@@ -432,6 +516,31 @@ void Game::addEncounterSymbol(int roomId, int x, int y, const char* pokemonName,
 
     encounters[encounterCount] = {roomId, x, y, pokemonName, symbol, true};
     ++encounterCount;
+}
+
+void Game::resetRoomEncounters(int roomId, int count, bool safariRates)
+{
+    // 해당 방의 encounter를 배열에서 제거 (compact)
+    int write = 0;
+    for (int read = 0; read < encounterCount; ++read)
+    {
+        if (encounters[read].roomId != roomId)
+            encounters[write++] = encounters[read];
+    }
+    encounterCount = write;
+
+    for (int i = 0; i < count; ++i)
+        addRandomEncounterSymbol(roomId, safariRates);
+}
+
+void Game::addRandomEncounterSymbol(int roomId, bool safariRates)
+{
+    Room* room = dungeon.getRoom(roomId);
+    if (room == nullptr) return;
+    int x = 1 + std::rand() % (room->getWidth()  - 2);
+    int y = 1 + std::rand() % (room->getHeight() - 2);
+    const PokemonData& pokemon = safariRates ? getRandomPokemonDataSafari() : getRandomPokemonData();
+    addEncounterSymbol(roomId, x, y, pokemon.name, 'M');
 }
 
 Game::ItemSymbol* Game::findItemAt(int roomId, int x, int y)
@@ -616,6 +725,15 @@ void Game::displayMap() const
               << (companion == nullptr ? "없음" : companion->name)
               << " | 장비 공격 +" << player.getEquipmentAttackBonus()
               << " / 방어 +" << player.getEquipmentDefenseBonus() << "\n";
+
+    int bAtk = 0, bDef = 0, bSpd = 0;
+    computeElementBuffs(bAtk, bDef, bSpd);
+    std::cout << "속성: " << elementToKorean(playerElement) << " | 버프:";
+    if (bAtk == 0 && bDef == 0 && bSpd == 0) std::cout << " 없음";
+    if (bAtk > 0) std::cout << " 공격 +" << bAtk;
+    if (bDef > 0) std::cout << " 방어 +" << bDef;
+    if (bSpd > 0) std::cout << " 속도 +" << bSpd;
+    std::cout << "\n";
 }
 
 void Game::handleInput()
@@ -634,7 +752,7 @@ void Game::handleInput()
     }
     if (input.action == InputAction::Inventory)
     {
-        player.getInventory().print();
+        player.getInventory().print(player.getEquippedWeaponName(), player.getEquippedArmorName(), true);
         waitForEnter();
         return;
     }
@@ -868,6 +986,19 @@ void Game::printPokedexEntries(const PokedexEntry* entries, int count) const
                   << " | 방어: " << data->defense
                   << " | 속도: " << data->speed << "\n";
 
+        // 동행 버프 표시
+        std::cout << "동행 버프: ";
+        switch (data->element)
+        {
+            case ElementType::Water:    std::cout << "방어 +" << data->defense / 10; break;
+            case ElementType::Fire:     std::cout << "공격 +" << data->attack  / 10; break;
+            case ElementType::Grass:    std::cout << "공격 +" << data->attack  / 10
+                                                  << ", 방어 +" << data->defense / 10; break;
+            case ElementType::Electric: std::cout << "속도 +" << data->speed   / 10; break;
+            case ElementType::Ground:   std::cout << "방어 +" << data->defense / 10; break;
+        }
+        std::cout << "\n";
+
         if (data->sprite != nullptr && data->sprite[0] != '\0')
         {
             std::cout << data->sprite << "\n";
@@ -883,6 +1014,15 @@ void Game::recordCaughtPokemon(const PokemonData* data)
         return;
     }
 
+    for (int i = 0; i < pokedexCount; ++i)
+    {
+        if (pokedex[i].data == data)
+        {
+            std::cout << data->name << "은(는) 이미 도감에 있습니다.\n";
+            return;
+        }
+    }
+
     if (pokedexCount >= MAX_POKEDEX)
     {
         std::cout << "도감 공간이 가득 차서 " << data->name << "을(를) 기록하지 못했습니다.\n";
@@ -894,11 +1034,11 @@ void Game::recordCaughtPokemon(const PokemonData* data)
     pokedex[newEntryIndex].caughtOrder = pokedexCount + 1;
     ++pokedexCount;
 
+    player.addScore(100);
     std::cout << data->name << "이(가) 도감에 추가되었습니다. 현재 도감: "
-              << pokedexCount << "마리\n";
+              << pokedexCount << "마리 | 점수 +100 (현재 점수: " << player.getScore() << ")\n";
 
-    companionIndex = newEntryIndex;
-    std::cout << data->name << "이(가) 동행 포켓몬으로 함께합니다.\n";
+    std::cout << "C 키로 동행 포켓몬을 설정할 수 있습니다.\n";
 }
 
 const PokemonData* Game::getCompanionPokemon() const
@@ -1009,6 +1149,10 @@ void Game::move(Direction direction)
         player.setCurrentRoomId(nextRoomId);
         player.setPosition(nextX, nextY);
         player.resetSteps();
+        if (nextRoomId == roomIdRoute1)
+            resetRoomEncounters(nextRoomId, 5, false);
+        else if (nextRoomId == roomIdSafari)
+            resetRoomEncounters(nextRoomId, 10, true);
         return;
     }
 
@@ -1106,8 +1250,8 @@ void Game::promptTakeItem()
 void Game::promptEquipItem()
 {
     clearScreen();
-    player.getInventory().print();
-    std::cout << "\n장착할 아이템 이름을 입력하세요 (취소: Enter): ";
+    player.getInventory().print(player.getEquippedWeaponName(), player.getEquippedArmorName(), true);
+    std::cout << "\n장착/해제할 아이템 이름을 입력하세요 (취소: Enter): ";
 
     std::string itemName;
     std::getline(std::cin, itemName);
@@ -1117,7 +1261,14 @@ void Game::promptEquipItem()
         return;
     }
 
-    player.equipItem(itemName);
+    if (player.isItemEquipped(itemName))
+    {
+        player.unequipItem(itemName);
+    }
+    else
+    {
+        player.equipItem(itemName);
+    }
     waitForEnter();
 }
 
@@ -1139,7 +1290,7 @@ bool Game::startPokemonBattle(const std::string& pokemonName)
     int attack = 15;
     int defense = 8;
     int speed = 10;
-    ElementType element = ElementType::Water;
+    ElementType element = playerElement;
 
     if (companion != nullptr)
     {
@@ -1162,6 +1313,25 @@ bool Game::startPokemonBattle(const std::string& pokemonName)
                   << " 효과가 적용됩니다.\n";
     }
 
+    // 속성 버프 계산
+    int totalBuffAtk = 0, totalBuffDef = 0, totalBuffSpd = 0;
+    computeElementBuffs(totalBuffAtk, totalBuffDef, totalBuffSpd);
+
+    attack  += totalBuffAtk;
+    defense += totalBuffDef;
+    speed   += totalBuffSpd;
+
+    if (totalBuffAtk > 0 || totalBuffDef > 0 || totalBuffSpd > 0)
+    {
+        std::cout << "[속성 버프] " << elementToKorean(playerElement) << " 속성";
+        if (companion != nullptr) std::cout << " / 동행 " << elementToKorean(companion->element) << " 속성";
+        std::cout << " →";
+        if (totalBuffAtk > 0) std::cout << " 공격 +" << totalBuffAtk;
+        if (totalBuffDef > 0) std::cout << " 방어 +" << totalBuffDef;
+        if (totalBuffSpd > 0) std::cout << " 속도 +" << totalBuffSpd;
+        std::cout << "\n";
+    }
+
     PlayerBattle playerBattle(
         battleName,
         maxHp,
@@ -1175,6 +1345,12 @@ bool Game::startPokemonBattle(const std::string& pokemonName)
 
     BattleSystem battleSystem;
     bool caught = battleSystem.startBattle(playerBattle, enemy);
+
+    if (!playerBattle.isAlive())
+    {
+        player.addScore(-100);
+        std::cout << "패배... 점수 -100 (현재 점수: " << player.getScore() << ")\n";
+    }
 
     removeInventoryItems("몬스터볼", monsterBalls - playerBattle.getMonsterBallCount());
     removeInventoryItems("풀회복약", fullHeals - playerBattle.getFullHealCount());

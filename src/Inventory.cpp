@@ -1,5 +1,7 @@
 #include "ds/Inventory.h"
+#include <algorithm>
 #include <iostream>
+#include <vector>
 
 Inventory::Inventory() : head(nullptr), count(0) {}
 
@@ -94,17 +96,29 @@ void Inventory::clear() {
     count = 0;
 }
 
-void Inventory::print() const {
+void Inventory::print(const std::string& equippedWeapon, const std::string& equippedArmor, bool sorted) const {
     if (head == nullptr) {
         std::cout << "가방이 비어 있습니다.\n";
         return;
     }
 
     std::cout << "가방 (" << count << "개):\n";
-    Node* current = head;
-    while (current != nullptr) {
+
+    // 링크드 리스트를 벡터로 복사 후 이름순 정렬
+    std::vector<const Item*> items;
+    for (Node* cur = head; cur != nullptr; cur = cur->next)
+        items.push_back(&cur->item);
+
+    if (sorted)
+        std::sort(items.begin(), items.end(),
+                  [](const Item* a, const Item* b) { return a->getName() < b->getName(); });
+
+    for (const Item* item : items) {
+        const std::string& n = item->getName();
+        bool equipped = (!equippedWeapon.empty() && n == equippedWeapon) ||
+                        (!equippedArmor.empty()  && n == equippedArmor);
         std::cout << "  - ";
-        current->item.print();
-        current = current->next;
+        if (equipped) std::cout << "[장착] ";
+        item->print();
     }
 }

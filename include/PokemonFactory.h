@@ -18,6 +18,7 @@ struct PokemonData {
 const PokemonData* findPokemonData(const std::string& name);
 const PokemonData& getDefaultPokemonData();
 const PokemonData& getRandomPokemonData();
+const PokemonData& getRandomPokemonDataSafari();
 int getPokemonNumber(const std::string& name);
 EnemyBattle createEnemyBattle(const PokemonData& data);
 

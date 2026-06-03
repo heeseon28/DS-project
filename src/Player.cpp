@@ -150,6 +150,26 @@ bool Player::equipItem(const std::string& itemName) {
     return true;
 }
 
+bool Player::unequipItem(const std::string& itemName) {
+    if (equippedWeaponName == itemName) {
+        equippedWeaponName = "";
+        equipmentAttackBonus = 0;
+        std::cout << itemName << " 장착 해제!\n";
+        return true;
+    }
+    if (equippedArmorName == itemName) {
+        equippedArmorName = "";
+        equipmentDefenseBonus = 0;
+        std::cout << itemName << " 장착 해제!\n";
+        return true;
+    }
+    return false;
+}
+
+bool Player::isItemEquipped(const std::string& itemName) const {
+    return equippedWeaponName == itemName || equippedArmorName == itemName;
+}
+
 int Player::getEquipmentAttackBonus() const {
     return equipmentAttackBonus;
 }

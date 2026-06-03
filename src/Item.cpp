@@ -45,7 +45,7 @@ bool Item::isEquipment() const {
 }
 
 void Item::print() const {
-    std::cout << name << " (가치 " << value << "): " << description << "\n";
+    std::cout << name << ": " << description << "\n";
     if (isEquipment()) {
         std::cout << "    장비 효과:";
         if (attackBonus > 0) {

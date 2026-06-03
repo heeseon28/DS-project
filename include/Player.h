@@ -51,6 +51,8 @@ public:
     void changeHealth(int delta);
     bool isAlive() const;
     bool equipItem(const std::string& itemName);
+    bool unequipItem(const std::string& itemName);
+    bool isItemEquipped(const std::string& itemName) const;
     int getEquipmentAttackBonus() const;
     int getEquipmentDefenseBonus() const;
     std::string getEquippedWeaponName() const;

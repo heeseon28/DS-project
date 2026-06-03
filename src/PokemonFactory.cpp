@@ -3078,6 +3078,29 @@ const PokemonData &getRandomPokemonData()
     return getDefaultPokemonData();
 }
 
+const PokemonData &getRandomPokemonDataSafari()
+{
+    int totalWeight = 0;
+    for (int i = 0; i < POKEMON_COUNT; ++i)
+    {
+        int rate = POKEMON_LIST[i].spawnRate > 0 ? POKEMON_LIST[i].spawnRate : 1;
+        if (rate < 50) rate *= 2;
+        totalWeight += rate;
+    }
+
+    int roll = std::rand() % totalWeight;
+    for (int i = 0; i < POKEMON_COUNT; ++i)
+    {
+        int rate = POKEMON_LIST[i].spawnRate > 0 ? POKEMON_LIST[i].spawnRate : 1;
+        if (rate < 50) rate *= 2;
+        if (roll < rate)
+            return POKEMON_LIST[i];
+        roll -= rate;
+    }
+
+    return getDefaultPokemonData();
+}
+
 int getPokemonNumber(const std::string &name)
 {
     for (int i = 0; i < POKEMON_COUNT; ++i)
