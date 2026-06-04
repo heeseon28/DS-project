@@ -1,5 +1,6 @@
 #include "Game.h"
 #include "BattleSystem.h"
+#include "BgmPlayer.h"
 #include "ItemFactory.h"
 #include "PokemonFactory.h"
 #include "ds/Sorting.h"
@@ -15,229 +16,242 @@
 
 namespace
 {
-enum class InputAction
-{
-    None,
-    Move,
-    Help,
-    Inventory,
-    Take,
-    Undo,
-    Status,
-    Scores,
-    SortItems,
-    Event,
-    Battle,
-    Pokedex,
-    Companion,
-    Equip,
-    Quit
-};
-
-struct GameInput
-{
-    InputAction action;
-    Direction direction;
-};
-
-class RawTerminalGuard
-{
-private:
-    termios original;
-    bool active;
-
-public:
-    RawTerminalGuard() : original(), active(false)
+    enum class InputAction
     {
-        if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &original) == 0)
-        {
-            termios raw = original;
-            raw.c_lflag &= static_cast<unsigned long>(~(ICANON | ECHO));
-            raw.c_cc[VMIN] = 1;
-            raw.c_cc[VTIME] = 0;
+        None,
+        Move,
+        Help,
+        Inventory,
+        Take,
+        Undo,
+        Status,
+        Scores,
+        SortItems,
+        Event,
+        Battle,
+        Pokedex,
+        Companion,
+        Equip,
+        Quit
+    };
 
-            if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) == 0)
+    struct GameInput
+    {
+        InputAction action;
+        Direction direction;
+    };
+
+    class RawTerminalGuard
+    {
+    private:
+        termios original;
+        bool active;
+
+    public:
+        RawTerminalGuard() : original(), active(false)
+        {
+            if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &original) == 0)
             {
-                active = true;
+                termios raw = original;
+                raw.c_lflag &= static_cast<unsigned long>(~(ICANON | ECHO));
+                raw.c_cc[VMIN] = 1;
+                raw.c_cc[VTIME] = 0;
+
+                if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) == 0)
+                {
+                    active = true;
+                }
             }
         }
+
+        ~RawTerminalGuard()
+        {
+            if (active)
+            {
+                tcsetattr(STDIN_FILENO, TCSANOW, &original);
+            }
+        }
+    };
+
+    void clearScreen()
+    {
+        std::cout << "\033[2J\033[H";
     }
 
-    ~RawTerminalGuard()
+    GameInput makeInput(InputAction action, Direction direction = Direction::Invalid)
     {
-        if (active)
+        GameInput input = {action, direction};
+        return input;
+    }
+
+    const char *elementToKorean(ElementType element)
+    {
+        switch (element)
         {
-            tcsetattr(STDIN_FILENO, TCSANOW, &original);
+        case ElementType::Water:
+            return "물";
+        case ElementType::Fire:
+            return "불";
+        case ElementType::Grass:
+            return "풀";
+        case ElementType::Electric:
+            return "전기";
+        case ElementType::Ground:
+            return "땅";
+        default:
+            return "알 수 없음";
         }
     }
-};
 
-void clearScreen()
-{
-    std::cout << "\033[2J\033[H";
-}
+    GameInput decodeCharacter(char key)
+    {
+        char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(key)));
 
-GameInput makeInput(InputAction action, Direction direction = Direction::Invalid)
-{
-    GameInput input = {action, direction};
-    return input;
-}
-
-const char* elementToKorean(ElementType element)
-{
-    switch (element)
-    {
-        case ElementType::Water:    return "물";
-        case ElementType::Fire:     return "불";
-        case ElementType::Grass:    return "풀";
-        case ElementType::Electric: return "전기";
-        case ElementType::Ground:   return "땅";
-        default:                    return "알 수 없음";
-    }
-}
-
-GameInput decodeCharacter(char key)
-{
-    char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(key)));
-
-    if (lower == 'w')
-    {
-        return makeInput(InputAction::Move, Direction::North);
-    }
-    if (lower == 's')
-    {
-        return makeInput(InputAction::Move, Direction::South);
-    }
-    if (lower == 'd')
-    {
-        return makeInput(InputAction::Move, Direction::East);
-    }
-    if (lower == 'a')
-    {
-        return makeInput(InputAction::Move, Direction::West);
-    }
-    if (lower == 'h')
-    {
-        return makeInput(InputAction::Help);
-    }
-    if (lower == 'i')
-    {
-        return makeInput(InputAction::Inventory);
-    }
-    if (lower == 't')
-    {
-        return makeInput(InputAction::Take);
-    }
-    if (lower == 'u')
-    {
-        return makeInput(InputAction::Undo);
-    }
-    if (lower == 'p')
-    {
-        return makeInput(InputAction::Status);
-    }
-    if (lower == 'r')
-    {
-        return makeInput(InputAction::SortItems);
-    }
-    if (lower == 'e')
-    {
-        return makeInput(InputAction::Event);
-    }
-    if (lower == 'b')
-    {
-        return makeInput(InputAction::Battle);
-    }
-    if (lower == 'o')
-    {
-        return makeInput(InputAction::Pokedex);
-    }
-    if (lower == 'c')
-    {
-        return makeInput(InputAction::Companion);
-    }
-    if (lower == 'g')
-    {
-        return makeInput(InputAction::Equip);
-    }
-    if (lower == 'q')
-    {
-        return makeInput(InputAction::Quit);
-    }
-    if (key == '\n' || key == '\r')
-    {
-        return makeInput(InputAction::None);
-    }
-
-    return makeInput(InputAction::None);
-}
-
-GameInput readGameInput()
-{
-    char key = 0;
-
-    if (!isatty(STDIN_FILENO))
-    {
-        if (!std::cin.get(key))
+        if (lower == 'w')
+        {
+            return makeInput(InputAction::Move, Direction::North);
+        }
+        if (lower == 's')
+        {
+            return makeInput(InputAction::Move, Direction::South);
+        }
+        if (lower == 'd')
+        {
+            return makeInput(InputAction::Move, Direction::East);
+        }
+        if (lower == 'a')
+        {
+            return makeInput(InputAction::Move, Direction::West);
+        }
+        if (lower == 'h')
+        {
+            return makeInput(InputAction::Help);
+        }
+        if (lower == 'i')
+        {
+            return makeInput(InputAction::Inventory);
+        }
+        if (lower == 't')
+        {
+            return makeInput(InputAction::Take);
+        }
+        if (lower == 'u')
+        {
+            return makeInput(InputAction::Undo);
+        }
+        if (lower == 'p')
+        {
+            return makeInput(InputAction::Status);
+        }
+        if (lower == 'r')
+        {
+            return makeInput(InputAction::SortItems);
+        }
+        if (lower == 'e')
+        {
+            return makeInput(InputAction::Event);
+        }
+        if (lower == 'b')
+        {
+            return makeInput(InputAction::Battle);
+        }
+        if (lower == 'o')
+        {
+            return makeInput(InputAction::Pokedex);
+        }
+        if (lower == 'c')
+        {
+            return makeInput(InputAction::Companion);
+        }
+        if (lower == 'g')
+        {
+            return makeInput(InputAction::Equip);
+        }
+        if (lower == 'q')
         {
             return makeInput(InputAction::Quit);
         }
-        return decodeCharacter(key);
-    }
-
-    RawTerminalGuard guard;
-    if (read(STDIN_FILENO, &key, 1) != 1)
-    {
-        return makeInput(InputAction::None);
-    }
-
-    if (key == '\033')
-    {
-        char sequence[2] = {0, 0};
-        if (read(STDIN_FILENO, &sequence[0], 1) != 1 ||
-            read(STDIN_FILENO, &sequence[1], 1) != 1)
+        if (key == '\n' || key == '\r')
         {
             return makeInput(InputAction::None);
         }
 
-        if (sequence[0] == '[')
-        {
-            if (sequence[1] == 'A')
-            {
-                return makeInput(InputAction::Move, Direction::North);
-            }
-            if (sequence[1] == 'B')
-            {
-                return makeInput(InputAction::Move, Direction::South);
-            }
-            if (sequence[1] == 'C')
-            {
-                return makeInput(InputAction::Move, Direction::East);
-            }
-            if (sequence[1] == 'D')
-            {
-                return makeInput(InputAction::Move, Direction::West);
-            }
-        }
-
         return makeInput(InputAction::None);
     }
 
-    return decodeCharacter(key);
-}
-
-void waitForEnter()
-{
-    if (!isatty(STDIN_FILENO))
+    GameInput readGameInput()
     {
-        return;
+        char key = 0;
+
+        if (!isatty(STDIN_FILENO))
+        {
+            if (!std::cin.get(key))
+            {
+                return makeInput(InputAction::Quit);
+            }
+            return decodeCharacter(key);
+        }
+
+        RawTerminalGuard guard;
+        if (read(STDIN_FILENO, &key, 1) != 1)
+        {
+            return makeInput(InputAction::None);
+        }
+
+        if (key == '\033')
+        {
+            char sequence[2] = {0, 0};
+            if (read(STDIN_FILENO, &sequence[0], 1) != 1 ||
+                read(STDIN_FILENO, &sequence[1], 1) != 1)
+            {
+                return makeInput(InputAction::None);
+            }
+
+            if (sequence[0] == '[')
+            {
+                if (sequence[1] == 'A')
+                {
+                    return makeInput(InputAction::Move, Direction::North);
+                }
+                if (sequence[1] == 'B')
+                {
+                    return makeInput(InputAction::Move, Direction::South);
+                }
+                if (sequence[1] == 'C')
+                {
+                    return makeInput(InputAction::Move, Direction::East);
+                }
+                if (sequence[1] == 'D')
+                {
+                    return makeInput(InputAction::Move, Direction::West);
+                }
+            }
+
+            return makeInput(InputAction::None);
+        }
+
+        return decodeCharacter(key);
     }
 
-    std::cout << "\n계속하려면 Enter를 누르세요...";
-    std::cout.flush();
-    std::string unused;
-    std::getline(std::cin, unused);
-}
+    void waitForEnter()
+    {
+        if (!isatty(STDIN_FILENO))
+        {
+            return;
+        }
+
+        std::cout << "\n계속하려면 Enter를 누르세요...";
+        std::cout.flush();
+        std::string unused;
+        std::getline(std::cin, unused);
+    }
+
+    void printDelayedLine(const std::string &line)
+    {
+        std::cout << line << "\n";
+        std::cout.flush();
+        sleep(1);
+    }
 }
 
 Game::Game()
@@ -253,11 +267,17 @@ Game::Game()
       pokedexCount(0),
       companionIndex(-1),
       running(true),
+      roomIdPallet(-1),
       roomIdRoute1(-1),
+      roomIdViridian(-1),
+      roomIdViridianGym(-1),
       roomIdSafari(-1),
-      playerElement(ElementType::Water)
+      playerElement(ElementType::Water),
+      professorCaught(false),
+      mewSpawned(false)
 {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    showIntro();
     choosePlayerElement();
     buildSampleWorld();
     for (int i = 0; i < 10; ++i)
@@ -271,43 +291,170 @@ Game::Game()
     seedScores();
 }
 
-void Game::computeElementBuffs(int& outAtk, int& outDef, int& outSpd) const
+void Game::showIntro()
 {
-    outAtk = 0; outDef = 0; outSpd = 0;
+    BgmPlayer::playLoop("intro.mp3");
+    clearScreen();
+
+    std::cout << R"INTRO(+=============================================+========+============================================
++===+==++===++==++===++===++==++===++===++===++===++===++===++===++===++===++===++===++===+====+====
++===+==++===++===+===++==++===++====+===++===++===++===++===++===++===++===++====+===++===+====+====
++=====*########*===*#######==+#####=########################+====#######+=#####*+###############+===
+=====###########+=##########++###############################*=+#########=######################+===
+=====**==---=-*#**##+=---=*#*#*=-=###--=#+--===--=##=--==--=##**#+=---=+#*#+=+###+--*#=--==--=##+===
++===+**---===-+**##*=-==--+****--=*#*--=#+---=====##---==---###*#=--==-+**#+-=*##=--##----====*#+===
++===+#*::=###::=###+::*#=::=##*::-##-.:##+..:#######:.:##=.:*##*#::+#+::+##=:=##*:.+##:.:=######+===
+=====**..=###:..*#-...*#=...=##:.-#*:-###=...#######:..##=...+#+...+#+:..=#=:=##:.*###:..=#####=====
+=====**..-##*:-+#*:...+*=...=**:...:***=+=......-***:..*#+--*##=...+*+...-*=....:##+=*:......=#=====
++===+**::-===-+*##-:::*#+:::=#*--:--=#*+*+:::*+++**#-:-==--=###+:::+#+:::=#+-----**+=#-::=+++*#+====
++===+#*----==-*###=---*#+---+##=---==###*+---#####*#---==--=###+---*#*---=#+---==*##+#=--+#####+====
+====+#*--=########=---*#+---+##=-=#*-=###+-=#%#%##%#---########+---*#*---=#+-+#*--*###=--+#####+====
+=====**--=#####+=+#+--*#+--=##*--=##=--##+--%##%##%#---#####*#%%+--+#+--+##+-+##*--+##---+#####*====
++===+**--=**++++=+#*=-=+=-+****--=*#+--+*+-=##%@%%@*---**+*@%#*=*+-===-=***+-+*#*=-=*#=--=++++**===+
++==++**--=#*++==++##+-----*###*=-=###--=#+---=*@@@#%@%=##=##=+**+=-----*###+-+###+--*#=-------##====
++===+######*+===+++#########++###############%%%%###@%###=+%++=+#*+#####*=######################====
++====######*=======+#######+=+#####=###########%%##%%@%%@#*=====**+#####+=#####*+##############*====
+================================================+@@+=+@#====--======-===============================
+-------------------------------------------------=##--*%#------=------------------------------------
+-----....::--------:....-:--------:...:--------::.:::--=-------:::..==--------....::--------:...:-:-
+:::.:..--::::..:::.:.:-::::...::.::.--::::..:::.:.:--:::..==::::.:-::.:.:.::.:.:--:::..::::::.--::.:
+.....:-------:.....:::------:.....::-------......:---===-:.....::-------......:-------:.....:-------
+.......::.............::.............:............:::.............:..............:............:::...
+::.............::.............::............:..............::.............:.............::..........
+....................................................................................................
+....................................................................................................
+:.:...............................................................................................::
+)INTRO";
+
+    std::cout << "\n\n"
+              << "                                      PRESS ENTER TO START\n";
+    std::cout.flush();
+
+    std::string unused;
+    std::getline(std::cin, unused);
+
+    BgmPlayer::stop();
+    clearScreen();
+}
+
+void Game::showEnding()
+{
+    BgmPlayer::playLoop("ending.mp3");
+    clearScreen();
+
+    std::cout << R"ENDING(+=============================================+========+============================================
++===+==++===++==++===++===++==++===++===++===++===++===++===++===++===++===++===++===++===+====+====
++===+==++===++===+===++==++===++====+===++===++===++===++===++===++===++===++====+===++===+====+====
++=====*########*===*#######==+#####=########################+====#######+=#####*+###############+===
+=====###########+=##########++###############################*=+#########=######################+===
+=====**==---=-*#**##+=---=*#*#*=-=###--=#+--===--=##=--==--=##**#+=---=+#*#+=+###+--*#=--==--=##+===
++===+**---===-+**##*=-==--+****--=*#*--=#+---=====##---==---###*#=--==-+**#+-=*##=--##----====*#+===
++===+#*::=###::=###+::*#=::=##*::-##-.:##+..:#######:.:##=.:*##*#::+#+::+##=:=##*:.+##:.:=######+===
+=====**..=###:..*#-...*#=...=##:.-#*:-###=...#######:..##=...+#+...+#+:..=#=:=##:.*###:..=#####=====
+=====**..-##*:-+#*:...+*=...=**:...:***=+=......-***:..*#+--*##=...+*+...-*=....:##+=*:......=#=====
++===+**::-===-+*##-:::*#+:::=#*--:--=#*+*+:::*+++**#-:-==--=###+:::+#+:::=#+-----**+=#-::=+++*#+====
++===+#*----==-*###=---*#+---+##=---==###*+---#####*#---==--=###+---*#*---=#+---==*##+#=--+#####+====
+====+#*--=########=---*#+---+##=-=#*-=###+-=#%#%##%#---########+---*#*---=#+-+#*--*###=--+#####+====
+=====**--=#####+=+#+--*#+--=##*--=##=--##+--%##%##%#---#####*#%%+--+#+--+##+-+##*--+##---+#####*====
++===+**--=**++++=+#*=-=+=-+****--=*#+--+*+-=##%@%%@*---**+*@%#*=*+-===-=***+-+*#*=-=*#=--=++++**===+
++==++**--=#*++==++##+-----*###*=-=###--=#+---=*@@@#%@%=##=##=+**+=-----*###+-+###+--*#=-------##====
++===+######*+===+++#########++###############%%%%###@%###=+%++=+#*+#####*=######################====
++====######*=======+#######+=+#####=###########%%##%%@%%@#*=====**+#####+=#####*+##############*====
+================================================+@@+=+@#====--======-===============================
+-------------------------------------------------=##--*%#------=------------------------------------
+-----....::--------:....-:--------:...:--------::.:::--=-------:::..==--------....::--------:...:-:-
+:::.:..--::::..:::.:.:-::::...::.::.--::::..:::.:.:--:::..==::::.:-::.:.:.::.:.:--:::..::::::.--::.:
+.....:-------:.....:::------:.....::-------......:---===-:.....::-------......:-------:.....:-------
+.......::.............::.............:............:::.............:..............:............:::...
+::.............::.............::............:..............::.............:.............::..........
+....................................................................................................
+....................................................................................................
+:.:...............................................................................................::
+)ENDING";
+
+    std::cout << "\n\n"
+              << "                                  THE END - PRESS ENTER\n";
+    std::cout.flush();
+
+    std::string unused;
+    std::getline(std::cin, unused);
+
+    BgmPlayer::stop();
+    clearScreen();
+}
+
+void Game::computeElementBuffs(int &outAtk, int &outDef, int &outSpd) const
+{
+    outAtk = 0;
+    outDef = 0;
+    outSpd = 0;
 
     int pAtk = 0, pDef = 0, pSpd = 0;
     switch (playerElement)
     {
-        case ElementType::Water:    pDef = 3; break;
-        case ElementType::Fire:     pAtk = 3; break;
-        case ElementType::Grass:    pAtk = 2; pDef = 2; break;
-        case ElementType::Electric: pSpd = 3; break;
-        case ElementType::Ground:   pDef = 4; break;
+    case ElementType::Water:
+        pDef = 3;
+        break;
+    case ElementType::Fire:
+        pAtk = 3;
+        break;
+    case ElementType::Grass:
+        pAtk = 2;
+        pDef = 2;
+        break;
+    case ElementType::Electric:
+        pSpd = 3;
+        break;
+    case ElementType::Ground:
+        pDef = 4;
+        break;
     }
 
-    const PokemonData* companion = getCompanionPokemon();
+    const PokemonData *companion = getCompanionPokemon();
     int cAtk = 0, cDef = 0, cSpd = 0;
     if (companion != nullptr)
     {
         switch (companion->element)
         {
-            case ElementType::Water:    cDef = companion->defense / 10; break;
-            case ElementType::Fire:     cAtk = companion->attack  / 10; break;
-            case ElementType::Grass:    cAtk = companion->attack  / 10;
-                                        cDef = companion->defense / 10; break;
-            case ElementType::Electric: cSpd = companion->speed   / 10; break;
-            case ElementType::Ground:   cDef = companion->defense / 10; break;
+        case ElementType::Water:
+            cDef = companion->defense / 10;
+            break;
+        case ElementType::Fire:
+            cAtk = companion->attack / 10;
+            break;
+        case ElementType::Grass:
+            cAtk = companion->attack / 10;
+            cDef = companion->defense / 10;
+            break;
+        case ElementType::Electric:
+            cSpd = companion->speed / 10;
+            break;
+        case ElementType::Ground:
+            cDef = companion->defense / 10;
+            break;
         }
 
         if (playerElement == companion->element)
         {
-            auto doublelarge = [](int& a, int& b) {
-                if (a >= b) { a *= 2; b = 0; }
-                else        { b *= 2; a = 0; }
+            auto doublelarge = [](int &a, int &b)
+            {
+                if (a >= b)
+                {
+                    a *= 2;
+                    b = 0;
+                }
+                else
+                {
+                    b *= 2;
+                    a = 0;
+                }
             };
-            if (pAtk > 0 || cAtk > 0) doublelarge(pAtk, cAtk);
-            if (pDef > 0 || cDef > 0) doublelarge(pDef, cDef);
-            if (pSpd > 0 || cSpd > 0) doublelarge(pSpd, cSpd);
+            if (pAtk > 0 || cAtk > 0)
+                doublelarge(pAtk, cAtk);
+            if (pDef > 0 || cDef > 0)
+                doublelarge(pDef, cDef);
+            if (pSpd > 0 || cSpd > 0)
+                doublelarge(pSpd, cSpd);
         }
     }
 
@@ -329,27 +476,110 @@ void Game::choosePlayerElement()
     std::string input;
     while (true)
     {
-        if (!(std::cin >> input)) break;
-        if      (input == "1") { playerElement = ElementType::Water;    break; }
-        else if (input == "2") { playerElement = ElementType::Fire;     break; }
-        else if (input == "3") { playerElement = ElementType::Grass;    break; }
-        else if (input == "4") { playerElement = ElementType::Electric; break; }
-        else if (input == "5") { playerElement = ElementType::Ground;   break; }
-        else std::cout << "1~5 중 하나를 입력하세요: ";
+        if (!(std::cin >> input))
+            break;
+        if (input == "1")
+        {
+            playerElement = ElementType::Water;
+            break;
+        }
+        else if (input == "2")
+        {
+            playerElement = ElementType::Fire;
+            break;
+        }
+        else if (input == "3")
+        {
+            playerElement = ElementType::Grass;
+            break;
+        }
+        else if (input == "4")
+        {
+            playerElement = ElementType::Electric;
+            break;
+        }
+        else if (input == "5")
+        {
+            playerElement = ElementType::Ground;
+            break;
+        }
+        else
+            std::cout << "1~5 중 하나를 입력하세요: ";
     }
     std::cout << elementToKorean(playerElement) << " 속성을 선택했습니다!\n";
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+}
+
+std::string Game::getFieldBgmFileName() const
+{
+    int currentRoomId = player.getCurrentRoomId();
+
+    if (currentRoomId == roomIdPallet)
+    {
+        return "태초마을.mp3";
+    }
+    if (currentRoomId == roomIdRoute1)
+    {
+        return "1번도로.mp3";
+    }
+    if (currentRoomId == roomIdSafari)
+    {
+        return "사파리존.mp3";
+    }
+    if (currentRoomId == roomIdViridianGym)
+    {
+        return "상록시티.mp3";
+    }
+    if (currentRoomId == roomIdViridian)
+    {
+        return "상록시티.mp3";
+    }
+
+    return "";
+}
+
+void Game::updateFieldBgm() const
+{
+    std::string bgmFileName = getFieldBgmFileName();
+    if (bgmFileName.empty())
+    {
+        BgmPlayer::stop();
+        return;
+    }
+
+    BgmPlayer::playLoop(bgmFileName);
+}
+
+void Game::showPlayerStatus() const
+{
+    const Room *room = dungeon.getRoom(player.getCurrentRoomId());
+    std::string roomName = room != nullptr ? room->getName() : "알 수 없음";
+
+    std::cout << "점수: " << player.getScore()
+              << " | 체력: " << player.getHealth()
+              << " | 위치: " << roomName
+              << " (" << player.getX() << ", " << player.getY() << ")"
+              << " | 걸음: " << player.getSteps() << "\n";
+    std::cout << "장비: 무기 "
+              << (player.getEquippedWeaponName().empty() ? "없음" : player.getEquippedWeaponName())
+              << " (공격 +" << player.getEquipmentAttackBonus() << ")"
+              << " | 방어구 "
+              << (player.getEquippedArmorName().empty() ? "없음" : player.getEquippedArmorName())
+              << " (방어 +" << player.getEquipmentDefenseBonus() << ")\n";
 }
 
 void Game::buildSampleWorld()
 {
     int pallet = dungeon.addRoom("태초마을", "모험이 시작되는 평화로운 마을이다.", 0, -1);
     int route1 = dungeon.addRoom("1번 도로", "야생 포켓몬이 모습을 드러내는 풀숲 길이다.", 30, -1);
-        // 이벤트 트리거를 제거: 걸음 기반 자동 이벤트를 비활성화합니다.
-        int viridian = dungeon.addRoom("상록시티", "체육관으로 이어지는 조용한 도시다.", 0, -1);
-        int viridianGym = dungeon.addRoom("상록시티 체육관", "상록시티의 정식 체육관입니다.", 0, -1);
-        int safari = dungeon.addRoom("사파리존", "희귀한 포켓몬과 아이템이 숨어 있는 넓은 구역이다.", 50, -1);
+    // 이벤트 트리거를 제거: 걸음 기반 자동 이벤트를 비활성화합니다.
+    int viridian = dungeon.addRoom("상록시티", "체육관으로 이어지는 조용한 도시다.", 0, -1);
+    int viridianGym = dungeon.addRoom("상록시티 체육관", "상록시티의 정식 체육관입니다.", 0, -1);
+    int safari = dungeon.addRoom("사파리존", "희귀한 포켓몬과 아이템이 숨어 있는 넓은 구역이다.", 50, -1);
+    roomIdPallet = pallet;
     roomIdRoute1 = route1;
+    roomIdViridian = viridian;
+    roomIdViridianGym = viridianGym;
     roomIdSafari = safari;
 
     dungeon.connectRooms(pallet, Direction::North, route1, true);
@@ -371,8 +601,10 @@ void Game::buildSampleWorld()
     addRandomRoomItem(safari, {"몬스터볼", "풀회복약"});
     addRandomRoomItem(viridian, {"몬스터볼", "풀회복약"});
 
-    for (int i = 0; i < 5; ++i)  addRandomEncounterSymbol(route1);
-    for (int i = 0; i < 10; ++i) addRandomEncounterSymbol(safari, true);
+    for (int i = 0; i < 5; ++i)
+        addRandomEncounterSymbol(route1);
+    for (int i = 0; i < 10; ++i)
+        addRandomEncounterSymbol(safari, true);
     addEncounterSymbol(viridian, 18, 18, getRandomPokemonData().name, 'M');
 
     // 체육관 입구: 빌딩 바로 아래에 게이트('#')가 보이도록 데코를 배치하고 게이트 연결
@@ -380,15 +612,22 @@ void Game::buildSampleWorld()
 
     // 상록시티 쪽에 대형 체육관 데코 배치 (사용자 요청 ASCII 스타일, 입구는 building 아래 entranceY)
     const int cx = gateX;
-    Room* vroom = dungeon.getRoom(viridian);
+    Room *vroom = dungeon.getRoom(viridian);
     int visualEntranceY = -1;
-    if (vroom != nullptr) {
+    if (vroom != nullptr)
+    {
         int roomW = vroom->getWidth();
-        int innerWidth = 17; // inner width between vertical borders
+        int innerWidth = 17;             // inner width between vertical borders
         int totalWidth = innerWidth + 2; // including side borders
-        int left = std::max(0, cx - totalWidth/2);
+        int left = std::max(0, cx - totalWidth / 2);
         int right = left + totalWidth - 1;
-        if (right >= roomW) { right = roomW - 1; left = right - totalWidth + 1; if (left < 0) left = 0; }
+        if (right >= roomW)
+        {
+            right = roomW - 1;
+            left = right - totalWidth + 1;
+            if (left < 0)
+                left = 0;
+        }
 
         // rows - rows[0]이 y=top(화면 아래), rows[마지막]이 y=top+N(화면 위)가 되도록
         std::vector<std::string> rows;
@@ -397,7 +636,8 @@ void Game::buildSampleWorld()
         // 따라서 문자열에는 '#'을 넣지 않고, 입구는 아래에서 한 위치만 '#'으로 설정한다.
         rows.push_back(std::string("+") + std::string(17, '=') + "+");
         rows.push_back(std::string("+") + std::string(innerWidth, '-') + "+");
-        for (int i = 0; i < 8; ++i) rows.push_back(std::string("|") + std::string(innerWidth, '.') + "|");
+        for (int i = 0; i < 8; ++i)
+            rows.push_back(std::string("|") + std::string(innerWidth, '.') + "|");
         rows.push_back(std::string("|") + std::string(7, '.') + "GYM" + std::string(7, '.') + "|");
         rows.push_back(std::string("/") + std::string(innerWidth, '=') + "\\");
         // roof at rows[마지막] (화면 맨 위)
@@ -405,31 +645,42 @@ void Game::buildSampleWorld()
 
         // 화면 아래쪽에서부터 배치
         int top = vroom->getHeight() - (int)rows.size();
-        if (top < 0) top = 0;
+        if (top < 0)
+            top = 0;
 
-        for (int ry = 0; ry < (int)rows.size(); ++ry) {
+        for (int ry = 0; ry < (int)rows.size(); ++ry)
+        {
             int y = top + ry;
-            const std::string& line = rows[ry];
-            for (int j = 0; j < (int)line.size(); ++j) {
+            const std::string &line = rows[ry];
+            for (int j = 0; j < (int)line.size(); ++j)
+            {
                 int x = left + j;
-                        if (x >= 0 && x < roomW && y >= 0 && y < vroom->getHeight()) {
-                            char c = line[j];
-                            if (c != ' ') vroom->setDecoration(x, y, c);
-                        }
+                if (x >= 0 && x < roomW && y >= 0 && y < vroom->getHeight())
+                {
+                    char c = line[j];
+                    if (c != ' ')
+                        vroom->setDecoration(x, y, c);
+                }
             }
         }
         // 입구 행의 실제 y 좌표 (rows[0]이 top에 배치되므로)
         visualEntranceY = top;
-        if (gateX >= 0 && gateX < roomW && visualEntranceY >= 0 && visualEntranceY < vroom->getHeight()) {
+        if (gateX >= 0 && gateX < roomW && visualEntranceY >= 0 && visualEntranceY < vroom->getHeight())
+        {
             vroom->setDecoration(gateX, visualEntranceY, '#');
         }
         // 빌딩 내부에 의도치 않게 남은 다른 '#'을 제거하고, 입구 '#'만 남김
-        for (int yy = top; yy <= top + (int)rows.size() - 1; ++yy) {
-            for (int xx = left; xx <= left + (int)rows[0].size() - 1; ++xx) {
-                if (xx < 0 || xx >= roomW || yy < 0 || yy >= vroom->getHeight()) continue;
+        for (int yy = top; yy <= top + (int)rows.size() - 1; ++yy)
+        {
+            for (int xx = left; xx <= left + (int)rows[0].size() - 1; ++xx)
+            {
+                if (xx < 0 || xx >= roomW || yy < 0 || yy >= vroom->getHeight())
+                    continue;
                 char dc = vroom->getDecoration(xx, yy);
-                if (dc == '#') {
-                    if (!(xx == gateX && yy == visualEntranceY)) {
+                if (dc == '#')
+                {
+                    if (!(xx == gateX && yy == visualEntranceY))
+                    {
                         // 상단의 잘못된 '#'은 '=', '-' 또는 '.'로 대체
                         // 여기서는 주변 장식과 어울리도록 '='로 바꿉니다.
                         vroom->setDecoration(xx, yy, '=');
@@ -438,32 +689,21 @@ void Game::buildSampleWorld()
             }
         }
 
-            // 이제 실제로 시각적 입구 위치(visualEntranceY)를 사용해 던전 게이트를 등록합니다.
-            // 이전에 사용하던 gateY_hint와 달리, 여기서는 정확한 y 좌표를 매핑합니다.
-            dungeon.connectRoomsByGate(viridian, gateX, visualEntranceY, viridianGym, gateX, 0);
-            dungeon.connectRoomsByGate(viridianGym, gateX, 0, viridian, gateX, visualEntranceY);
-            gateRecords.push_back({viridian, gateX, visualEntranceY, viridianGym, gateX, 0});
-            gateRecords.push_back({viridianGym, gateX, 0, viridian, gateX, visualEntranceY});
+        // 이제 실제로 시각적 입구 위치(visualEntranceY)를 사용해 던전 게이트를 등록합니다.
+        // 이전에 사용하던 gateY_hint와 달리, 여기서는 정확한 y 좌표를 매핑합니다.
+        dungeon.connectRoomsByGate(viridian, gateX, visualEntranceY, viridianGym, gateX, 0);
+        dungeon.connectRoomsByGate(viridianGym, gateX, 0, viridian, gateX, visualEntranceY);
+        gateRecords.push_back({viridian, gateX, visualEntranceY, viridianGym, gateX, 0});
+        gateRecords.push_back({viridianGym, gateX, 0, viridian, gateX, visualEntranceY});
     }
 
-    // 상록시티 체육관(viridianGym) 룸 중앙에 체육관 NPC 심볼 'G' 추가
-    Room* gymRoom = dungeon.getRoom(viridianGym);
-    if (gymRoom != nullptr) {
+    // 상록시티 체육관 중앙에 오박사 심볼 'T' 추가
+    Room *gymRoom = dungeon.getRoom(viridianGym);
+    if (gymRoom != nullptr)
+    {
         int gx = gymRoom->getWidth() / 2;
         int gy = gymRoom->getHeight() / 2;
-        addEncounterSymbol(viridianGym, gx, gy, "GYM_LEADER", 'G');
-    }
-
-    // 디버그: 게이트 좌표와 던전의 게이트 체크 결과를 출력
-    {
-        int outR=-1, outX=-1, outY=-1;
-        bool hasGate = dungeon.checkGate(viridian, gateX, visualEntranceY, outR, outX, outY);
-        std::cout << "[DEBUG] viridian gate at (" << gateX << "," << visualEntranceY << ") -> ";
-        if (hasGate) {
-            std::cout << "maps to room " << outR << " at (" << outX << "," << outY << ")\n";
-        } else {
-            std::cout << "NO_GATE_FOUND\n";
-        }
+        addEncounterSymbol(viridianGym, gx, gy, "오박사", 'T');
     }
 }
 
@@ -474,9 +714,9 @@ void Game::seedScores()
     scoreTree.insert(ScoreRecord("Green", 95));
 }
 
-void Game::addRoomItem(int roomId, int x, int y, const Item& item)
+void Game::addRoomItem(int roomId, int x, int y, const Item &item)
 {
-    Room* room = dungeon.getRoom(roomId);
+    Room *room = dungeon.getRoom(roomId);
     if (room == nullptr)
     {
         return;
@@ -493,21 +733,24 @@ void Game::addRoomItem(int roomId, int x, int y, const Item& item)
     ++itemSymbolCount;
 }
 
-void Game::addRandomRoomItem(int roomId, const std::vector<std::string>& pool, int spawnChancePercent)
+void Game::addRandomRoomItem(int roomId, const std::vector<std::string> &pool, int spawnChancePercent)
 {
-    if (pool.empty()) return;
-    if ((std::rand() % 100) >= spawnChancePercent) return;
+    if (pool.empty())
+        return;
+    if ((std::rand() % 100) >= spawnChancePercent)
+        return;
 
-    Room* room = dungeon.getRoom(roomId);
-    if (room == nullptr) return;
+    Room *room = dungeon.getRoom(roomId);
+    if (room == nullptr)
+        return;
 
-    int x = 1 + std::rand() % (room->getWidth()  - 2);
+    int x = 1 + std::rand() % (room->getWidth() - 2);
     int y = 1 + std::rand() % (room->getHeight() - 2);
-    const std::string& itemName = pool[std::rand() % pool.size()];
+    const std::string &itemName = pool[std::rand() % pool.size()];
     addRoomItem(roomId, x, y, createItem(itemName));
 }
 
-void Game::addEncounterSymbol(int roomId, int x, int y, const char* pokemonName, char symbol)
+void Game::addEncounterSymbol(int roomId, int x, int y, const char *pokemonName, char symbol)
 {
     if (encounterCount >= MAX_ENCOUNTERS)
     {
@@ -535,15 +778,16 @@ void Game::resetRoomEncounters(int roomId, int count, bool safariRates)
 
 void Game::addRandomEncounterSymbol(int roomId, bool safariRates)
 {
-    Room* room = dungeon.getRoom(roomId);
-    if (room == nullptr) return;
-    int x = 1 + std::rand() % (room->getWidth()  - 2);
+    Room *room = dungeon.getRoom(roomId);
+    if (room == nullptr)
+        return;
+    int x = 1 + std::rand() % (room->getWidth() - 2);
     int y = 1 + std::rand() % (room->getHeight() - 2);
-    const PokemonData& pokemon = safariRates ? getRandomPokemonDataSafari() : getRandomPokemonData();
+    const PokemonData &pokemon = safariRates ? getRandomPokemonDataSafari() : getRandomPokemonData();
     addEncounterSymbol(roomId, x, y, pokemon.name, 'M');
 }
 
-Game::ItemSymbol* Game::findItemAt(int roomId, int x, int y)
+Game::ItemSymbol *Game::findItemAt(int roomId, int x, int y)
 {
     for (int i = 0; i < itemSymbolCount; ++i)
     {
@@ -559,8 +803,7 @@ Game::ItemSymbol* Game::findItemAt(int roomId, int x, int y)
     return nullptr;
 }
 
-
-const Game::ItemSymbol* Game::findItemAt(int roomId, int x, int y) const
+const Game::ItemSymbol *Game::findItemAt(int roomId, int x, int y) const
 {
     for (int i = 0; i < itemSymbolCount; ++i)
     {
@@ -576,7 +819,7 @@ const Game::ItemSymbol* Game::findItemAt(int roomId, int x, int y) const
     return nullptr;
 }
 
-Game::ItemSymbol* Game::findItemSymbol(int roomId, const std::string& itemName)
+Game::ItemSymbol *Game::findItemSymbol(int roomId, const std::string &itemName)
 {
     for (int i = 0; i < itemSymbolCount; ++i)
     {
@@ -591,7 +834,7 @@ Game::ItemSymbol* Game::findItemSymbol(int roomId, const std::string& itemName)
     return nullptr;
 }
 
-Game::EncounterSymbol* Game::findEncounterAt(int roomId, int x, int y)
+Game::EncounterSymbol *Game::findEncounterAt(int roomId, int x, int y)
 {
     for (int i = 0; i < encounterCount; ++i)
     {
@@ -607,7 +850,7 @@ Game::EncounterSymbol* Game::findEncounterAt(int roomId, int x, int y)
     return nullptr;
 }
 
-const Game::EncounterSymbol* Game::findEncounterAt(int roomId, int x, int y) const
+const Game::EncounterSymbol *Game::findEncounterAt(int roomId, int x, int y) const
 {
     for (int i = 0; i < encounterCount; ++i)
     {
@@ -630,7 +873,7 @@ char Game::tileAt(int roomId, int x, int y) const
         return 'P';
     }
 
-    const EncounterSymbol* encounter = findEncounterAt(roomId, x, y);
+    const EncounterSymbol *encounter = findEncounterAt(roomId, x, y);
     if (encounter != nullptr)
     {
         return encounter->symbol;
@@ -644,14 +887,14 @@ char Game::tileAt(int roomId, int x, int y) const
         return '#';
     }
 
-    const ItemSymbol* item = findItemAt(roomId, x, y);
+    const ItemSymbol *item = findItemAt(roomId, x, y);
     if (item != nullptr)
     {
         return 'I';
     }
 
     // Decorations (walls/building art) — show decoration char if present.
-    const Room* decoRoom = dungeon.getRoom(roomId);
+    const Room *decoRoom = dungeon.getRoom(roomId);
     if (decoRoom != nullptr)
     {
         char deco = decoRoom->getDecoration(x, y);
@@ -668,7 +911,7 @@ void Game::displayMap() const
 {
     clearScreen();
 
-    const Room* room = dungeon.getRoom(player.getCurrentRoomId());
+    const Room *room = dungeon.getRoom(player.getCurrentRoomId());
     int width = room != nullptr ? room->getWidth() : 40;
     int height = room != nullptr ? room->getHeight() : 40;
     int viewHeight = height < 20 ? height : 20;
@@ -689,7 +932,7 @@ void Game::displayMap() const
 
     std::cout << "현재 위치: " << (room != nullptr ? room->getName() : "알 수 없음")
               << " (" << player.getX() << ", " << player.getY() << ")\n";
-    std::cout << "P 플레이어 | M 몬스터 | G 체육관 | I 아이템 | # 게이트\n";
+    std::cout << "P 플레이어 | M 몬스터 | T 오박사 | I 아이템 | # 게이트\n";
     std::cout << "방향키/WASD 이동 | T 줍기 | I 가방 | G 장착 | C 동행 | O 도감 | H 도움말 | Q 종료\n";
 
     std::cout << '+';
@@ -720,7 +963,7 @@ void Game::displayMap() const
               << " | 걸음: " << player.getSteps()
               << " | 현재 방 ID: " << player.getCurrentRoomId() << "\n";
 
-    const PokemonData* companion = getCompanionPokemon();
+    const PokemonData *companion = getCompanionPokemon();
     std::cout << "동행: "
               << (companion == nullptr ? "없음" : companion->name)
               << " | 장비 공격 +" << player.getEquipmentAttackBonus()
@@ -729,10 +972,14 @@ void Game::displayMap() const
     int bAtk = 0, bDef = 0, bSpd = 0;
     computeElementBuffs(bAtk, bDef, bSpd);
     std::cout << "속성: " << elementToKorean(playerElement) << " | 버프:";
-    if (bAtk == 0 && bDef == 0 && bSpd == 0) std::cout << " 없음";
-    if (bAtk > 0) std::cout << " 공격 +" << bAtk;
-    if (bDef > 0) std::cout << " 방어 +" << bDef;
-    if (bSpd > 0) std::cout << " 속도 +" << bSpd;
+    if (bAtk == 0 && bDef == 0 && bSpd == 0)
+        std::cout << " 없음";
+    if (bAtk > 0)
+        std::cout << " 공격 +" << bAtk;
+    if (bDef > 0)
+        std::cout << " 방어 +" << bDef;
+    if (bSpd > 0)
+        std::cout << " 속도 +" << bSpd;
     std::cout << "\n";
 }
 
@@ -773,7 +1020,7 @@ void Game::handleInput()
     }
     if (input.action == InputAction::Status)
     {
-        player.printStatus();
+        showPlayerStatus();
         waitForEnter();
         return;
     }
@@ -921,7 +1168,7 @@ void Game::showCompanionMenu()
 
     for (int i = 0; i < pokedexCount; ++i)
     {
-        const PokemonData* data = pokedex[i].data;
+        const PokemonData *data = pokedex[i].data;
         if (data == nullptr)
         {
             continue;
@@ -965,11 +1212,11 @@ void Game::showCompanionMenu()
     waitForEnter();
 }
 
-void Game::printPokedexEntries(const PokedexEntry* entries, int count) const
+void Game::printPokedexEntries(const PokedexEntry *entries, int count) const
 {
     for (int i = 0; i < count; ++i)
     {
-        const PokemonData* data = entries[i].data;
+        const PokemonData *data = entries[i].data;
         if (data == nullptr)
         {
             continue;
@@ -990,12 +1237,22 @@ void Game::printPokedexEntries(const PokedexEntry* entries, int count) const
         std::cout << "동행 버프: ";
         switch (data->element)
         {
-            case ElementType::Water:    std::cout << "방어 +" << data->defense / 10; break;
-            case ElementType::Fire:     std::cout << "공격 +" << data->attack  / 10; break;
-            case ElementType::Grass:    std::cout << "공격 +" << data->attack  / 10
-                                                  << ", 방어 +" << data->defense / 10; break;
-            case ElementType::Electric: std::cout << "속도 +" << data->speed   / 10; break;
-            case ElementType::Ground:   std::cout << "방어 +" << data->defense / 10; break;
+        case ElementType::Water:
+            std::cout << "방어 +" << data->defense / 10;
+            break;
+        case ElementType::Fire:
+            std::cout << "공격 +" << data->attack / 10;
+            break;
+        case ElementType::Grass:
+            std::cout << "공격 +" << data->attack / 10
+                      << ", 방어 +" << data->defense / 10;
+            break;
+        case ElementType::Electric:
+            std::cout << "속도 +" << data->speed / 10;
+            break;
+        case ElementType::Ground:
+            std::cout << "방어 +" << data->defense / 10;
+            break;
         }
         std::cout << "\n";
 
@@ -1007,7 +1264,7 @@ void Game::printPokedexEntries(const PokedexEntry* entries, int count) const
     std::cout << "----------------------------------------\n";
 }
 
-void Game::recordCaughtPokemon(const PokemonData* data)
+void Game::recordCaughtPokemon(const PokemonData *data)
 {
     if (data == nullptr)
     {
@@ -1041,7 +1298,7 @@ void Game::recordCaughtPokemon(const PokemonData* data)
     std::cout << "C 키로 동행 포켓몬을 설정할 수 있습니다.\n";
 }
 
-const PokemonData* Game::getCompanionPokemon() const
+const PokemonData *Game::getCompanionPokemon() const
 {
     if (companionIndex < 0 || companionIndex >= pokedexCount)
     {
@@ -1051,9 +1308,23 @@ const PokemonData* Game::getCompanionPokemon() const
     return pokedex[companionIndex].data;
 }
 
+void Game::spawnMewInPallet()
+{
+    if (mewSpawned || roomIdPallet == -1)
+    {
+        return;
+    }
+
+    addEncounterSymbol(roomIdPallet, 20, 20, "뮤", 'M');
+    mewSpawned = true;
+
+    printDelayedLine("오박사: 훌륭하구나. 태초마을에 신비로운 포켓몬이 나타났다는 소식이 들려왔단다.");
+    printDelayedLine("오박사: 어서 돌아가 보거라. 그 포켓몬은 분명 너를 기다리고 있을 게다.");
+}
+
 void Game::look() const
 {
-    const Room* room = dungeon.getRoom(player.getCurrentRoomId());
+    const Room *room = dungeon.getRoom(player.getCurrentRoomId());
     if (room == nullptr)
     {
         std::cout << "현재 지역 정보를 찾을 수 없습니다.\n";
@@ -1065,7 +1336,7 @@ void Game::look() const
 
 void Game::move(Direction direction)
 {
-    const Room* room = dungeon.getRoom(player.getCurrentRoomId());
+    const Room *room = dungeon.getRoom(player.getCurrentRoomId());
     if (room == nullptr)
     {
         std::cout << "현재 지역 정보를 찾을 수 없습니다.\n";
@@ -1082,31 +1353,39 @@ void Game::move(Direction direction)
     int proposedY = player.getY() + getDeltaY(direction);
 
     // 경계 체크
-    if (proposedX < 0 || proposedX >= room->getWidth() || proposedY < 0 || proposedY >= room->getHeight()) {
+    if (proposedX < 0 || proposedX >= room->getWidth() || proposedY < 0 || proposedY >= room->getHeight())
+    {
         std::cout << "벽에 부딪혔습니다. 더 이상 이동할 수 없습니다.\n";
         return;
     }
 
     int tgtRoom = -1, tgtX = -1, tgtY = -1;
     bool isGate = dungeon.checkGate(player.getCurrentRoomId(), proposedX, proposedY, tgtRoom, tgtX, tgtY);
-    if (!isGate) {
+    if (!isGate)
+    {
         // fallback: check our recorded gates (in case of mismatch between visual deco and DungeonGraph)
         // Debug: if there's a '#' decoration here but no gate found, print info to help diagnose
-        const Room* debugRoom = dungeon.getRoom(player.getCurrentRoomId());
-        if (debugRoom != nullptr) {
+        const Room *debugRoom = dungeon.getRoom(player.getCurrentRoomId());
+        if (debugRoom != nullptr)
+        {
             char decoHere = debugRoom->getDecoration(proposedX, proposedY);
-            if (decoHere == '#') {
+            if (decoHere == '#')
+            {
                 std::cout << "[DEBUG] Stepping onto '#' at (" << proposedX << "," << proposedY << ") in room " << player.getCurrentRoomId() << " but checkGate returned false.\n";
                 // print recorded gates for this room
-                for (const auto& gr : gateRecords) {
-                    if (gr.roomId == player.getCurrentRoomId()) {
+                for (const auto &gr : gateRecords)
+                {
+                    if (gr.roomId == player.getCurrentRoomId())
+                    {
                         std::cout << "[DEBUG] recorded gate: (" << gr.x << "," << gr.y << ") -> room " << gr.targetRoomId << " at (" << gr.targetX << "," << gr.targetY << ")\n";
                     }
                 }
             }
         }
-        for (const auto& gr : gateRecords) {
-            if (gr.roomId == player.getCurrentRoomId() && gr.x == proposedX && gr.y == proposedY) {
+        for (const auto &gr : gateRecords)
+        {
+            if (gr.roomId == player.getCurrentRoomId() && gr.x == proposedX && gr.y == proposedY)
+            {
                 isGate = true;
                 tgtRoom = gr.targetRoomId;
                 tgtX = gr.targetX;
@@ -1115,7 +1394,8 @@ void Game::move(Direction direction)
             }
         }
 
-        if (!isGate && room->isBlocked(proposedX, proposedY)) {
+        if (!isGate && room->isBlocked(proposedX, proposedY))
+        {
             std::cout << "벽에 부딪혔습니다. 더 이상 이동할 수 없습니다.\n";
             return;
         }
@@ -1133,10 +1413,13 @@ void Game::move(Direction direction)
     int nextRoomId = -1;
     int nextX = -1;
     int nextY = -1;
-    if (!dungeon.checkGate(player.getCurrentRoomId(), player.getX(), player.getY(), nextRoomId, nextX, nextY)) {
+    if (!dungeon.checkGate(player.getCurrentRoomId(), player.getX(), player.getY(), nextRoomId, nextX, nextY))
+    {
         // fallback: search recorded gates
-        for (const auto& gr : gateRecords) {
-            if (gr.roomId == player.getCurrentRoomId() && gr.x == player.getX() && gr.y == player.getY()) {
+        for (const auto &gr : gateRecords)
+        {
+            if (gr.roomId == player.getCurrentRoomId() && gr.x == player.getX() && gr.y == player.getY())
+            {
                 nextRoomId = gr.targetRoomId;
                 nextX = gr.targetX;
                 nextY = gr.targetY;
@@ -1145,7 +1428,8 @@ void Game::move(Direction direction)
         }
     }
 
-    if (nextRoomId != -1) {
+    if (nextRoomId != -1)
+    {
         player.setCurrentRoomId(nextRoomId);
         player.setPosition(nextX, nextY);
         player.resetSteps();
@@ -1156,7 +1440,7 @@ void Game::move(Direction direction)
         return;
     }
 
-    EncounterSymbol* encounter = findEncounterAt(player.getCurrentRoomId(), player.getX(), player.getY());
+    EncounterSymbol *encounter = findEncounterAt(player.getCurrentRoomId(), player.getX(), player.getY());
     if (encounter != nullptr)
     {
         startEncounterBattle(*encounter);
@@ -1178,7 +1462,7 @@ void Game::undoMove()
     waitForEnter();
 }
 
-void Game::removeInventoryItems(const std::string& itemName, int count)
+void Game::removeInventoryItems(const std::string &itemName, int count)
 {
     for (int i = 0; i < count; ++i)
     {
@@ -1189,7 +1473,7 @@ void Game::removeInventoryItems(const std::string& itemName, int count)
     }
 }
 
-void Game::takeItem(const std::string& itemName)
+void Game::takeItem(const std::string &itemName)
 {
     if (itemName.empty())
     {
@@ -1197,7 +1481,7 @@ void Game::takeItem(const std::string& itemName)
         return;
     }
 
-    Room* room = dungeon.getRoom(player.getCurrentRoomId());
+    Room *room = dungeon.getRoom(player.getCurrentRoomId());
     if (room == nullptr)
     {
         std::cout << "현재 지역 정보를 찾을 수 없습니다.\n";
@@ -1212,7 +1496,7 @@ void Game::takeItem(const std::string& itemName)
     }
 
     player.getInventory().addItem(item);
-    ItemSymbol* itemSymbol = findItemSymbol(player.getCurrentRoomId(), itemName);
+    ItemSymbol *itemSymbol = findItemSymbol(player.getCurrentRoomId(), itemName);
     if (itemSymbol != nullptr)
     {
         itemSymbol->active = false;
@@ -1225,7 +1509,7 @@ void Game::takeItem(const std::string& itemName)
 
 void Game::promptTakeItem()
 {
-    ItemSymbol* itemHere = findItemAt(
+    ItemSymbol *itemHere = findItemAt(
         player.getCurrentRoomId(),
         player.getX(),
         player.getY());
@@ -1272,9 +1556,9 @@ void Game::promptEquipItem()
     waitForEnter();
 }
 
-bool Game::startPokemonBattle(const std::string& pokemonName)
+bool Game::startPokemonBattle(const std::string &pokemonName)
 {
-    const PokemonData* pokemonData = findPokemonData(pokemonName);
+    const PokemonData *pokemonData = findPokemonData(pokemonName);
     if (pokemonData == nullptr)
     {
         std::cout << "'" << pokemonName << "' 포켓몬 데이터를 찾을 수 없어 기본 포켓몬으로 전투를 시작합니다.\n";
@@ -1283,9 +1567,9 @@ bool Game::startPokemonBattle(const std::string& pokemonName)
 
     int monsterBalls = player.getInventory().countItem("몬스터볼");
     int fullHeals = player.getInventory().countItem("풀회복약");
-    const PokemonData* companion = getCompanionPokemon();
+    const PokemonData *companion = getCompanionPokemon();
 
-    std::string battleName = "플레이어";
+    std::string battleName = "플레이어"; // 플레이어 능력치
     int maxHp = 100;
     int attack = 15;
     int defense = 8;
@@ -1317,18 +1601,22 @@ bool Game::startPokemonBattle(const std::string& pokemonName)
     int totalBuffAtk = 0, totalBuffDef = 0, totalBuffSpd = 0;
     computeElementBuffs(totalBuffAtk, totalBuffDef, totalBuffSpd);
 
-    attack  += totalBuffAtk;
+    attack += totalBuffAtk;
     defense += totalBuffDef;
-    speed   += totalBuffSpd;
+    speed += totalBuffSpd;
 
     if (totalBuffAtk > 0 || totalBuffDef > 0 || totalBuffSpd > 0)
     {
         std::cout << "[속성 버프] " << elementToKorean(playerElement) << " 속성";
-        if (companion != nullptr) std::cout << " / 동행 " << elementToKorean(companion->element) << " 속성";
+        if (companion != nullptr)
+            std::cout << " / 동행 " << elementToKorean(companion->element) << " 속성";
         std::cout << " →";
-        if (totalBuffAtk > 0) std::cout << " 공격 +" << totalBuffAtk;
-        if (totalBuffDef > 0) std::cout << " 방어 +" << totalBuffDef;
-        if (totalBuffSpd > 0) std::cout << " 속도 +" << totalBuffSpd;
+        if (totalBuffAtk > 0)
+            std::cout << " 공격 +" << totalBuffAtk;
+        if (totalBuffDef > 0)
+            std::cout << " 방어 +" << totalBuffDef;
+        if (totalBuffSpd > 0)
+            std::cout << " 속도 +" << totalBuffSpd;
         std::cout << "\n";
     }
 
@@ -1345,6 +1633,8 @@ bool Game::startPokemonBattle(const std::string& pokemonName)
 
     BattleSystem battleSystem;
     bool caught = battleSystem.startBattle(playerBattle, enemy);
+    updateFieldBgm();
+    bool defeatedProfessor = playerBattle.isAlive() && !enemy.isAlive();
 
     if (!playerBattle.isAlive())
     {
@@ -1359,18 +1649,116 @@ bool Game::startPokemonBattle(const std::string& pokemonName)
     return caught;
 }
 
-void Game::startEncounterBattle(EncounterSymbol& encounter)
+bool Game::startProfessorBattle()
+{
+    printDelayedLine("오박사: 여기까지 왔구나.");
+    printDelayedLine("오박사: 네가 자료구조의 길을 제대로 걸어왔는지 마지막으로 확인해 보마.");
+    printDelayedLine("오박사: 준비가 되었다면, 이 배틀을 받아라!");
+    std::cout << "\n";
+
+    int monsterBalls = player.getInventory().countItem("몬스터볼");
+    int fullHeals = player.getInventory().countItem("풀회복약");
+    const PokemonData *companion = getCompanionPokemon();
+
+    std::string battleName = "플레이어";
+    int maxHp = 100;
+    int attack = 15;
+    int defense = 8;
+    int speed = 10;
+    ElementType element = playerElement;
+
+    if (companion != nullptr)
+    {
+        battleName = companion->name;
+        maxHp = companion->maxHp;
+        attack = companion->attack;
+        defense = companion->defense;
+        speed = companion->speed;
+        element = companion->element;
+        std::cout << "[동행] " << companion->name << "이(가) 전투에 나섭니다!\n";
+    }
+
+    attack += player.getEquipmentAttackBonus();
+    defense += player.getEquipmentDefenseBonus();
+
+    int totalBuffAtk = 0;
+    int totalBuffDef = 0;
+    int totalBuffSpd = 0;
+    computeElementBuffs(totalBuffAtk, totalBuffDef, totalBuffSpd);
+
+    attack += totalBuffAtk;
+    defense += totalBuffDef;
+    speed += totalBuffSpd;
+
+    PlayerBattle playerBattle(
+        battleName,
+        maxHp,
+        attack,
+        defense,
+        speed,
+        element,
+        monsterBalls,
+        fullHeals);
+    EnemyBattle enemy("오박사", 120, 45, 38, 55, ElementType::Electric); // 오박사 능력치
+
+    BattleSystem battleSystem;
+    bool caught = battleSystem.startBattle(playerBattle, enemy);
+    updateFieldBgm();
+    bool defeatedProfessor = playerBattle.isAlive() && !enemy.isAlive();
+
+    if (!playerBattle.isAlive())
+    {
+        player.addScore(-100);
+        std::cout << "패배... 점수 -100 (현재 점수: " << player.getScore() << ")\n";
+    }
+
+    removeInventoryItems("몬스터볼", monsterBalls - playerBattle.getMonsterBallCount());
+    removeInventoryItems("풀회복약", fullHeals - playerBattle.getFullHealCount());
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+    return defeatedProfessor;
+}
+
+void Game::startEncounterBattle(EncounterSymbol &encounter)
 {
     clearScreen();
+    if (std::string(encounter.pokemonName) == "오박사")
+    {
+        std::cout << "체육관 중앙에서 오박사가 당신을 기다리고 있습니다.\n";
+        bool defeatedProfessor = startProfessorBattle();
+        if (defeatedProfessor)
+        {
+            professorCaught = true;
+            encounter.active = false;
+            spawnMewInPallet();
+        }
+        else
+        {
+            printDelayedLine("오박사: 아직 끝난 것은 아니란다. 다시 준비해서 오거라.");
+        }
+        waitForEnter();
+        return;
+    }
+
     std::cout << "야생의 " << encounter.pokemonName << " 심볼과 마주쳤습니다!\n";
 
     bool caught = startPokemonBattle(encounter.pokemonName);
     if (caught)
     {
         recordCaughtPokemon(findPokemonData(encounter.pokemonName));
+        if (std::string(encounter.pokemonName) == "뮤")
+        {
+            encounter.active = false;
+            showEnding();
+            running = false;
+            return;
+        }
     }
 
-    encounter.active = false;
+    if (std::string(encounter.pokemonName) != "뮤" || caught)
+    {
+        encounter.active = false;
+    }
     std::cout << "\n심볼 인카운터가 처리되었습니다.\n";
     waitForEnter();
 }
@@ -1398,7 +1786,7 @@ void Game::showScores() const
 
 void Game::showSortedRoomItems() const
 {
-    const Room* room = dungeon.getRoom(player.getCurrentRoomId());
+    const Room *room = dungeon.getRoom(player.getCurrentRoomId());
     if (room == nullptr)
     {
         std::cout << "현재 지역 정보를 찾을 수 없습니다.\n";
@@ -1412,7 +1800,7 @@ void Game::showSortedRoomItems() const
         return;
     }
 
-    Item* items = new Item[count];
+    Item *items = new Item[count];
     for (int i = 0; i < count; ++i)
     {
         items[i] = room->getItem(i);
@@ -1434,10 +1822,12 @@ void Game::run()
 {
     while (running && player.isAlive())
     {
+        updateFieldBgm();
         displayMap();
         handleInput();
     }
 
+    BgmPlayer::stop();
     scoreTree.insert(ScoreRecord(player.getName(), player.getScore()));
     clearScreen();
     std::cout << "최종 상태:\n";

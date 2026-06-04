@@ -3084,7 +3084,8 @@ const PokemonData &getRandomPokemonDataSafari()
     for (int i = 0; i < POKEMON_COUNT; ++i)
     {
         int rate = POKEMON_LIST[i].spawnRate > 0 ? POKEMON_LIST[i].spawnRate : 1;
-        if (rate < 50) rate *= 2;
+        if (rate < 50)
+            rate *= 2;
         totalWeight += rate;
     }
 
@@ -3092,7 +3093,8 @@ const PokemonData &getRandomPokemonDataSafari()
     for (int i = 0; i < POKEMON_COUNT; ++i)
     {
         int rate = POKEMON_LIST[i].spawnRate > 0 ? POKEMON_LIST[i].spawnRate : 1;
-        if (rate < 50) rate *= 2;
+        if (rate < 50)
+            rate *= 2;
         if (roll < rate)
             return POKEMON_LIST[i];
         roll -= rate;

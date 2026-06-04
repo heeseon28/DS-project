@@ -64,14 +64,25 @@ private:
     int pokedexCount;
     int companionIndex;
     bool running;
+    int roomIdPallet;
     int roomIdRoute1;
+    int roomIdViridian;
+    int roomIdViridianGym;
     int roomIdSafari;
     ElementType playerElement;
+    bool professorCaught;
+    bool mewSpawned;
 
     void buildSampleWorld();
     void seedScores();
+    void showIntro();
+    void showEnding();
     void choosePlayerElement();
     void computeElementBuffs(int& outAtk, int& outDef, int& outSpd) const;
+    std::string getFieldBgmFileName() const;
+    void updateFieldBgm() const;
+    void showPlayerStatus() const;
+    void spawnMewInPallet();
     void addRoomItem(int roomId, int x, int y, const Item& item);
     void addRandomRoomItem(int roomId, const std::vector<std::string>& pool, int spawnChancePercent = 70);
     void addEncounterSymbol(int roomId, int x, int y, const char* pokemonName, char symbol);
@@ -100,6 +111,7 @@ private:
     void promptTakeItem();
     void promptEquipItem();
     bool startPokemonBattle(const std::string& pokemonName);
+    bool startProfessorBattle();
     void startEncounterBattle(EncounterSymbol& encounter);
     void processOneEvent();
     void showScores() const;

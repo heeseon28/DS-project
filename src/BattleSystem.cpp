@@ -1,115 +1,22 @@
 #include "BattleSystem.h" //
+#include "BgmPlayer.h"
 #include "PokemonFactory.h"
-#include <cerrno>
-#include <csignal>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <limits.h>
+#include <sstream>
 #include <string>
+#include <unistd.h>
+#include <vector>
+
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 namespace
 {
-#if defined(__APPLE__)
-    pid_t battleBgmLoopPid = -1;
-#endif
-
-    bool fileExists(const std::string &path)
-    {
-        std::ifstream file(path, std::ios::binary);
-        return file.good();
-    }
-
-    std::string findBgmFromDirectory(const std::string &startDirectory, const char *const *fileNames)
-    {
-        std::string current = startDirectory;
-        for (int depth = 0; depth < 10 && !current.empty(); ++depth)
-        {
-            for (int i = 0; fileNames[i] != nullptr; ++i)
-            {
-                std::string candidate = current + "/" + fileNames[i];
-                if (fileExists(candidate))
-                {
-                    return candidate;
-                }
-            }
-
-            std::size_t slash = current.find_last_of('/');
-            if (slash == std::string::npos || slash == 0)
-            {
-                break;
-            }
-            current = current.substr(0, slash);
-        }
-
-        return "";
-    }
-
-    std::string findBattleBgmPath()
-    {
-        const char *fileNames[] = {
-            "bgm/battle_bgm.mp3",
-            "src/bgm/battle_bgm.mp3",
-            "battle_bgm.mp3",
-            nullptr};
-
-        const char *candidates[] = {
-            "bgm/battle_bgm.mp3",
-            "src/bgm/battle_bgm.mp3",
-            "./battle_bgm.mp3",
-            "../battle_bgm.mp3"};
-
-        for (const char *path : candidates)
-        {
-            if (fileExists(path))
-            {
-                return path;
-            }
-        }
-
-        char cwdBuffer[4096];
-        if (getcwd(cwdBuffer, sizeof(cwdBuffer)) != nullptr)
-        {
-            std::string found = findBgmFromDirectory(cwdBuffer, fileNames);
-            if (!found.empty())
-            {
-                return found;
-            }
-        }
-
-#if defined(__APPLE__)
-        char executablePathBuffer[4096];
-        uint32_t executablePathSize = sizeof(executablePathBuffer);
-        if (_NSGetExecutablePath(executablePathBuffer, &executablePathSize) == 0)
-        {
-            char resolvedExecutablePath[4096];
-            const char *executablePath = realpath(executablePathBuffer, resolvedExecutablePath);
-            std::string executableDirectory = executablePath != nullptr
-                                                  ? resolvedExecutablePath
-                                                  : executablePathBuffer;
-
-            std::size_t slash = executableDirectory.find_last_of('/');
-            if (slash != std::string::npos)
-            {
-                executableDirectory = executableDirectory.substr(0, slash);
-                std::string found = findBgmFromDirectory(executableDirectory, fileNames);
-                if (!found.empty())
-                {
-                    return found;
-                }
-            }
-        }
-#endif
-
-        return "";
-    }
-
     std::string statusToKorean(StatusCondition status)
     {
         if (status == StatusCondition::Paralysis)
@@ -125,98 +32,155 @@ namespace
         return "정상";
     }
 
-    void startBattleBgm()
+    bool isStrongBattlePokemon(const std::string& pokemonName)
     {
-#if defined(__APPLE__)
-        if (battleBgmLoopPid > 0)
+        return pokemonName == "썬더" ||
+               pokemonName == "프리져" ||
+               pokemonName == "프리저" ||
+               pokemonName == "파이어" ||
+               pokemonName == "뮤";
+    }
+
+    std::string getBattleBgmFileName(const std::string& pokemonName)
+    {
+        if (pokemonName == "오박사")
         {
-            return;
+            return "vs 오박사.mp3";
+        }
+        if (pokemonName == "뮤")
+        {
+            return "vs 뮤.mp3";
         }
 
-        std::string bgmPath = findBattleBgmPath();
-        if (bgmPath.empty())
+        return isStrongBattlePokemon(pokemonName)
+                   ? "battle_strong.mp3"
+                   : "battle_bgm.mp3";
+    }
+
+    void startBattleBgm(const std::string& pokemonName)
+    {
+        BgmPlayer::playLoop(getBattleBgmFileName(pokemonName));
+    }
+
+    std::string readTextFile(const std::string& path)
+    {
+        std::ifstream file(path);
+        if (!file.good())
         {
-            return;
+            return "";
         }
 
-        if (access("/usr/bin/afplay", X_OK) != 0)
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        return buffer.str();
+    }
+
+    std::string joinPath(const std::string& basePath, const std::string& relativePath)
+    {
+        if (basePath.empty() || basePath == ".")
         {
-            return;
+            return relativePath;
         }
 
-        pid_t loopPid = fork();
-        if (loopPid < 0)
+        if (basePath[basePath.size() - 1] == '/')
         {
-            return;
+            return basePath + relativePath;
         }
 
-        if (loopPid == 0)
-        {
-            setpgid(0, 0);
+        return basePath + "/" + relativePath;
+    }
 
-            while (true)
+    std::string parentDirectory(const std::string& path)
+    {
+        if (path.empty() || path == "/")
+        {
+            return "";
+        }
+
+        std::string trimmed = path;
+        while (trimmed.size() > 1 && trimmed[trimmed.size() - 1] == '/')
+        {
+            trimmed.erase(trimmed.size() - 1);
+        }
+
+        std::string::size_type slash = trimmed.find_last_of('/');
+        if (slash == std::string::npos)
+        {
+            return "";
+        }
+        if (slash == 0)
+        {
+            return "/";
+        }
+
+        return trimmed.substr(0, slash);
+    }
+
+    std::string loadTextAssetFromDirectoryTree(
+        const std::string& startDirectory,
+        const std::string& relativePath)
+    {
+        std::string directory = startDirectory;
+        for (int depth = 0; depth < 10 && !directory.empty(); ++depth)
+        {
+            std::string text = readTextFile(joinPath(directory, relativePath));
+            if (!text.empty())
             {
-                pid_t playerPid = fork();
-                if (playerPid == 0)
-                {
-                    execl("/usr/bin/afplay", "afplay", bgmPath.c_str(), static_cast<char *>(nullptr));
-                    execlp("afplay", "afplay", bgmPath.c_str(), static_cast<char *>(nullptr));
-                    _exit(127);
-                }
+                return text;
+            }
 
-                if (playerPid < 0)
-                {
-                    _exit(1);
-                }
+            directory = parentDirectory(directory);
+        }
 
-                int status = 0;
-                pid_t waited = 0;
-                do
-                {
-                    waited = waitpid(playerPid, &status, 0);
-                } while (waited == -1 && errno == EINTR);
+        return "";
+    }
 
-                if (waited == -1)
-                {
-                    _exit(1);
-                }
+    std::string loadTextAsset(const std::string& relativePath)
+    {
+        const std::string directText = readTextFile(relativePath);
+        if (!directText.empty())
+        {
+            return directText;
+        }
 
-                if (WIFEXITED(status) && WEXITSTATUS(status) == 127)
-                {
-                    _exit(127);
-                }
-
-                if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-                {
-                    _exit(1);
-                }
+        char cwd[PATH_MAX];
+        if (getcwd(cwd, sizeof(cwd)) != nullptr)
+        {
+            std::string text = loadTextAssetFromDirectoryTree(cwd, relativePath);
+            if (!text.empty())
+            {
+                return text;
             }
         }
 
-        setpgid(loopPid, loopPid);
-        battleBgmLoopPid = loopPid;
-#else
-        (void)findBattleBgmPath;
-#endif
-    }
-
-    void stopBattleBgm()
-    {
 #if defined(__APPLE__)
-        if (battleBgmLoopPid <= 0)
+        uint32_t executablePathSize = PATH_MAX;
+        std::vector<char> executablePath(executablePathSize, '\0');
+        if (_NSGetExecutablePath(executablePath.data(), &executablePathSize) != 0)
         {
-            return;
+            executablePath.assign(executablePathSize + 1, '\0');
         }
 
-        kill(-battleBgmLoopPid, SIGTERM);
-
-        int status = 0;
-        while (waitpid(battleBgmLoopPid, &status, 0) == -1 && errno == EINTR)
+        if (_NSGetExecutablePath(executablePath.data(), &executablePathSize) == 0)
         {
-        }
+            char resolvedPath[PATH_MAX];
+            const char *path = executablePath.data();
+            if (realpath(executablePath.data(), resolvedPath) != nullptr)
+            {
+                path = resolvedPath;
+            }
 
-        battleBgmLoopPid = -1;
+            std::string text = loadTextAssetFromDirectoryTree(
+                parentDirectory(path),
+                relativePath);
+            if (!text.empty())
+            {
+                return text;
+            }
+        }
 #endif
+
+        return "";
     }
 
     void printPokemonSprite(const char *sprite)
@@ -227,6 +191,15 @@ namespace
         }
 
         std::cout << sprite << "\n";
+    }
+
+    void printProfessorSprite()
+    {
+        std::string sprite = loadTextAsset("data/oak_sprite.txt");
+        if (!sprite.empty())
+        {
+            std::cout << sprite << "\n";
+        }
     }
 }
 
@@ -902,16 +875,27 @@ void BattleSystem::processAction(
 bool BattleSystem::startBattle(PlayerBattle &player, EnemyBattle &enemy)
 {
     lastCatchSucceeded = false;
-    startBattleBgm();
+    startBattleBgm(enemy.getName());
 
     const PokemonData *pokemonData = findPokemonData(enemy.getName());
-    std::cout << "\n야생의 " << enemy.getName() << " 등장!\n";
+    if (enemy.getName() == "오박사")
+    {
+        std::cout << "\n오박사가 승부를 걸어왔다!\n";
+    }
+    else
+    {
+        std::cout << "\n야생의 " << enemy.getName() << " 등장!\n";
+    }
 
     while (player.isAlive() && enemy.isAlive())
     {
         if (pokemonData != nullptr)
         {
             printPokemonSprite(pokemonData->sprite);
+        }
+        else if (enemy.getName() == "오박사")
+        {
+            printProfessorSprite();
         }
 
         std::cout << "\n[전투] "
@@ -997,7 +981,7 @@ bool BattleSystem::startBattle(PlayerBattle &player, EnemyBattle &enemy)
         }
     }
 
-    stopBattleBgm();
+    BgmPlayer::stop();
 
     std::cout << "\n전투 종료.\n";
 

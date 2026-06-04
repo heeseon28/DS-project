@@ -10,6 +10,7 @@ set(PROJECT_SOURCES
     src/main.cpp
     src/Game.cpp
     src/BattleSystem.cpp
+    src/BgmPlayer.cpp
     src/PokemonFactory.cpp
     src/ItemFactory.cpp
     src/Direction.cpp
@@ -29,6 +30,7 @@ set(TEST_SOURCES
     tests/ds_smoke_tests.cpp
     src/Direction.cpp
     src/BattleSystem.cpp
+    src/BgmPlayer.cpp
     src/PokemonFactory.cpp
     src/ItemFactory.cpp
     src/Player.cpp
