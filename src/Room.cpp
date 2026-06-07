@@ -38,21 +38,23 @@ Room::Room(
 void Room::setDecoration(int x, int y, char c)
 {
     if (x < 0 || x >= width || y < 0 || y >= height) return;
-    if (decorations.empty()) decorations.assign(width * height, '\0');
+    if (decorations.isEmpty()) {
+        for (int i = 0; i < width * height; ++i) decorations.pushBack('\0');
+    }
     decorations[y * width + x] = c;
 }
 
 char Room::getDecoration(int x, int y) const
 {
     if (x < 0 || x >= width || y < 0 || y >= height) return '\0';
-    if (decorations.empty()) return '\0';
+    if (decorations.isEmpty()) return '\0';
     return decorations[y * width + x];
 }
 
 bool Room::isBlocked(int x, int y) const
 {
     if (x < 0 || x >= width || y < 0 || y >= height) return true;
-    if (decorations.empty()) return false;
+    if (decorations.isEmpty()) return false;
     return decorations[y * width + x] != '\0';
 }
 

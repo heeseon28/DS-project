@@ -9,7 +9,6 @@
 #include <sstream>
 #include <string>
 #include <unistd.h>
-#include <vector>
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -155,17 +154,17 @@ namespace
 
 #if defined(__APPLE__)
         uint32_t executablePathSize = PATH_MAX;
-        std::vector<char> executablePath(executablePathSize, '\0');
-        if (_NSGetExecutablePath(executablePath.data(), &executablePathSize) != 0)
+        std::string executablePath(executablePathSize, '\0');
+        if (_NSGetExecutablePath(&executablePath[0], &executablePathSize) != 0)
         {
             executablePath.assign(executablePathSize + 1, '\0');
         }
 
-        if (_NSGetExecutablePath(executablePath.data(), &executablePathSize) == 0)
+        if (_NSGetExecutablePath(&executablePath[0], &executablePathSize) == 0)
         {
             char resolvedPath[PATH_MAX];
-            const char *path = executablePath.data();
-            if (realpath(executablePath.data(), resolvedPath) != nullptr)
+            const char *path = executablePath.c_str();
+            if (realpath(executablePath.c_str(), resolvedPath) != nullptr)
             {
                 path = resolvedPath;
             }

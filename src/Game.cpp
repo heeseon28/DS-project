@@ -597,9 +597,13 @@ void Game::buildSampleWorld()
     addRoomItem(pallet, 8, 18, createItem("풀회복약"));
     addRoomItem(pallet, 0, 0, createItem("라이플"));
     addRoomItem(route1, 5, 28, createItem("갑옷"));
-    addRandomRoomItem(route1, {"몬스터볼", "풀회복약"});
-    addRandomRoomItem(safari, {"몬스터볼", "풀회복약"});
-    addRandomRoomItem(viridian, {"몬스터볼", "풀회복약"});
+
+    DynamicArray<std::string> commonItemPool;
+    commonItemPool.pushBack("몬스터볼");
+    commonItemPool.pushBack("풀회복약");
+    addRandomRoomItem(route1, commonItemPool);
+    addRandomRoomItem(safari, commonItemPool);
+    addRandomRoomItem(viridian, commonItemPool);
 
     for (int i = 0; i < 5; ++i)
         addRandomEncounterSymbol(route1);
@@ -630,18 +634,18 @@ void Game::buildSampleWorld()
         }
 
         // rows - rows[0]이 y=top(화면 아래), rows[마지막]이 y=top+N(화면 위)가 되도록
-        std::vector<std::string> rows;
+        DynamicArray<std::string> rows;
         // entrance at rows[0] (화면 맨 아래)
         // NOTE: 원래 문자열에 '#'이 들어가면 빌딩 내부에 여러 '#'가 찍힐 수 있음.
         // 따라서 문자열에는 '#'을 넣지 않고, 입구는 아래에서 한 위치만 '#'으로 설정한다.
-        rows.push_back(std::string("+") + std::string(17, '=') + "+");
-        rows.push_back(std::string("+") + std::string(innerWidth, '-') + "+");
+        rows.pushBack(std::string("+") + std::string(17, '=') + "+");
+        rows.pushBack(std::string("+") + std::string(innerWidth, '-') + "+");
         for (int i = 0; i < 8; ++i)
-            rows.push_back(std::string("|") + std::string(innerWidth, '.') + "|");
-        rows.push_back(std::string("|") + std::string(7, '.') + "GYM" + std::string(7, '.') + "|");
-        rows.push_back(std::string("/") + std::string(innerWidth, '=') + "\\");
+            rows.pushBack(std::string("|") + std::string(innerWidth, '.') + "|");
+        rows.pushBack(std::string("|") + std::string(7, '.') + "GYM" + std::string(7, '.') + "|");
+        rows.pushBack(std::string("/") + std::string(innerWidth, '=') + "\\");
         // roof at rows[마지막] (화면 맨 위)
-        rows.push_back(std::string("+") + std::string(7, '=') + "/=\\" + std::string(7, '=') + "+");
+        rows.pushBack(std::string("+") + std::string(7, '=') + "/=\\" + std::string(7, '=') + "+");
 
         // 화면 아래쪽에서부터 배치
         int top = vroom->getHeight() - (int)rows.size();
@@ -693,8 +697,8 @@ void Game::buildSampleWorld()
         // 이전에 사용하던 gateY_hint와 달리, 여기서는 정확한 y 좌표를 매핑합니다.
         dungeon.connectRoomsByGate(viridian, gateX, visualEntranceY, viridianGym, gateX, 0);
         dungeon.connectRoomsByGate(viridianGym, gateX, 0, viridian, gateX, visualEntranceY);
-        gateRecords.push_back({viridian, gateX, visualEntranceY, viridianGym, gateX, 0});
-        gateRecords.push_back({viridianGym, gateX, 0, viridian, gateX, visualEntranceY});
+        gateRecords.pushBack({viridian, gateX, visualEntranceY, viridianGym, gateX, 0});
+        gateRecords.pushBack({viridianGym, gateX, 0, viridian, gateX, visualEntranceY});
     }
 
     // 상록시티 체육관 중앙에 오박사 심볼 'T' 추가
@@ -733,9 +737,9 @@ void Game::addRoomItem(int roomId, int x, int y, const Item &item)
     ++itemSymbolCount;
 }
 
-void Game::addRandomRoomItem(int roomId, const std::vector<std::string> &pool, int spawnChancePercent)
+void Game::addRandomRoomItem(int roomId, const DynamicArray<std::string> &pool, int spawnChancePercent)
 {
-    if (pool.empty())
+    if (pool.isEmpty())
         return;
     if ((std::rand() % 100) >= spawnChancePercent)
         return;
@@ -1373,8 +1377,9 @@ void Game::move(Direction direction)
             {
                 std::cout << "[DEBUG] Stepping onto '#' at (" << proposedX << "," << proposedY << ") in room " << player.getCurrentRoomId() << " but checkGate returned false.\n";
                 // print recorded gates for this room
-                for (const auto &gr : gateRecords)
+                for (int gi = 0; gi < gateRecords.size(); ++gi)
                 {
+                    const Game::GateRecord &gr = gateRecords[gi];
                     if (gr.roomId == player.getCurrentRoomId())
                     {
                         std::cout << "[DEBUG] recorded gate: (" << gr.x << "," << gr.y << ") -> room " << gr.targetRoomId << " at (" << gr.targetX << "," << gr.targetY << ")\n";
@@ -1382,8 +1387,9 @@ void Game::move(Direction direction)
                 }
             }
         }
-        for (const auto &gr : gateRecords)
+        for (int gi = 0; gi < gateRecords.size(); ++gi)
         {
+            const Game::GateRecord &gr = gateRecords[gi];
             if (gr.roomId == player.getCurrentRoomId() && gr.x == proposedX && gr.y == proposedY)
             {
                 isGate = true;
@@ -1416,8 +1422,9 @@ void Game::move(Direction direction)
     if (!dungeon.checkGate(player.getCurrentRoomId(), player.getX(), player.getY(), nextRoomId, nextX, nextY))
     {
         // fallback: search recorded gates
-        for (const auto &gr : gateRecords)
+        for (int gi = 0; gi < gateRecords.size(); ++gi)
         {
+            const Game::GateRecord &gr = gateRecords[gi];
             if (gr.roomId == player.getCurrentRoomId() && gr.x == player.getX() && gr.y == player.getY())
             {
                 nextRoomId = gr.targetRoomId;

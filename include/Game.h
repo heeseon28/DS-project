@@ -6,11 +6,11 @@
 #include "Item.h"
 #include "Player.h"
 #include "ds/DungeonGraph.h"
+#include "ds/DynamicArray.h"
 #include "ds/Queue.h"
 #include "ds/ScoreTree.h"
 #include "ds/Stack.h"
 #include <string>
-#include <vector>
 
 struct PokemonData;
 
@@ -58,7 +58,7 @@ private:
     EncounterSymbol encounters[MAX_ENCOUNTERS];
     ItemSymbol itemSymbols[MAX_ITEM_SYMBOLS];
     PokedexEntry pokedex[MAX_POKEDEX];
-    std::vector<GateRecord> gateRecords;
+    DynamicArray<GateRecord> gateRecords;
     int encounterCount;
     int itemSymbolCount;
     int pokedexCount;
@@ -84,7 +84,7 @@ private:
     void showPlayerStatus() const;
     void spawnMewInPallet();
     void addRoomItem(int roomId, int x, int y, const Item& item);
-    void addRandomRoomItem(int roomId, const std::vector<std::string>& pool, int spawnChancePercent = 70);
+    void addRandomRoomItem(int roomId, const DynamicArray<std::string>& pool, int spawnChancePercent = 70);
     void addEncounterSymbol(int roomId, int x, int y, const char* pokemonName, char symbol);
     void addRandomEncounterSymbol(int roomId, bool safariRates = false);
     void resetRoomEncounters(int roomId, int count, bool safariRates = false);

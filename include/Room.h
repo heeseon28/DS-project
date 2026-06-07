@@ -5,7 +5,6 @@
 #include "Monster.h"
 #include "ds/DynamicArray.h"
 #include <string>
-#include <vector>
 
 class Room {
 private:
@@ -19,7 +18,7 @@ private:
     int height;
     int encounterRate;
     int eventTriggerStep;
-    std::vector<char> decorations;
+    DynamicArray<char> decorations;
 
 public:
     Room();

@@ -1,7 +1,6 @@
 #include "ds/Inventory.h"
-#include <algorithm>
+#include "ds/DynamicArray.h"
 #include <iostream>
-#include <vector>
 
 Inventory::Inventory() : head(nullptr), count(0) {}
 
@@ -104,16 +103,26 @@ void Inventory::print(const std::string& equippedWeapon, const std::string& equi
 
     std::cout << "가방 (" << count << "개):\n";
 
-    // 링크드 리스트를 벡터로 복사 후 이름순 정렬
-    std::vector<const Item*> items;
+    // 링크드 리스트를 동적 배열로 복사 후 이름순 정렬
+    DynamicArray<const Item*> items;
     for (Node* cur = head; cur != nullptr; cur = cur->next)
-        items.push_back(&cur->item);
+        items.pushBack(&cur->item);
 
-    if (sorted)
-        std::sort(items.begin(), items.end(),
-                  [](const Item* a, const Item* b) { return a->getName() < b->getName(); });
+    if (sorted) {
+        // 삽입 정렬: 아이템 개수가 적어 단순한 정렬로 충분
+        for (int i = 1; i < items.size(); ++i) {
+            const Item* key = items[i];
+            int j = i - 1;
+            while (j >= 0 && items[j]->getName() > key->getName()) {
+                items[j + 1] = items[j];
+                --j;
+            }
+            items[j + 1] = key;
+        }
+    }
 
-    for (const Item* item : items) {
+    for (int i = 0; i < items.size(); ++i) {
+        const Item* item = items[i];
         const std::string& n = item->getName();
         bool equipped = (!equippedWeapon.empty() && n == equippedWeapon) ||
                         (!equippedArmor.empty()  && n == equippedArmor);
