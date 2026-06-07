@@ -154,17 +154,12 @@ namespace
 
 #if defined(__APPLE__)
         uint32_t executablePathSize = PATH_MAX;
-        std::string executablePath(executablePathSize, '\0');
-        if (_NSGetExecutablePath(&executablePath[0], &executablePathSize) != 0)
-        {
-            executablePath.assign(executablePathSize + 1, '\0');
-        }
-
-        if (_NSGetExecutablePath(&executablePath[0], &executablePathSize) == 0)
+        char executablePath[PATH_MAX];
+        if (_NSGetExecutablePath(executablePath, &executablePathSize) == 0)
         {
             char resolvedPath[PATH_MAX];
-            const char *path = executablePath.c_str();
-            if (realpath(executablePath.c_str(), resolvedPath) != nullptr)
+            const char *path = executablePath;
+            if (realpath(executablePath, resolvedPath) != nullptr)
             {
                 path = resolvedPath;
             }

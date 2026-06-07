@@ -1,6 +1,5 @@
 #include "Room.h"
 #include <iostream>
-#include <algorithm>
 
 Room::Room()
     : id(-1),
@@ -12,7 +11,8 @@ Room::Room()
       width(40),
       height(40),
       encounterRate(0),
-      eventTriggerStep(-1) {}
+      eventTriggerStep(-1),
+      decorations(nullptr) {}
 
 Room::Room(int id, const std::string& name, const std::string& description)
     : Room(id, name, description, 0, -1) {}
@@ -32,29 +32,91 @@ Room::Room(
       width(40),
       height(40),
       encounterRate(encounterRate),
-      eventTriggerStep(eventTriggerStep) {}
+      eventTriggerStep(eventTriggerStep),
+      decorations(nullptr) {}
+
+Room::Room(const Room& other)
+    : id(other.id),
+      name(other.name),
+      description(other.description),
+      items(other.items),
+      monsters(other.monsters),
+      visited(other.visited),
+      width(other.width),
+      height(other.height),
+      encounterRate(other.encounterRate),
+      eventTriggerStep(other.eventTriggerStep),
+      decorations(nullptr) {
+    copyDecorationsFrom(other);
+}
+
+Room& Room::operator=(const Room& other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    id = other.id;
+    name = other.name;
+    description = other.description;
+    items = other.items;
+    monsters = other.monsters;
+    visited = other.visited;
+    width = other.width;
+    height = other.height;
+    encounterRate = other.encounterRate;
+    eventTriggerStep = other.eventTriggerStep;
+
+    delete[] decorations;
+    decorations = nullptr;
+    copyDecorationsFrom(other);
+    return *this;
+}
+
+Room::~Room() {
+    delete[] decorations;
+}
+
+void Room::allocateDecorations() {
+    if (decorations != nullptr) {
+        return;
+    }
+
+    decorations = new char[width * height];
+    for (int i = 0; i < width * height; ++i) {
+        decorations[i] = '\0';
+    }
+}
+
+void Room::copyDecorationsFrom(const Room& other) {
+    if (other.decorations == nullptr) {
+        return;
+    }
+
+    allocateDecorations();
+    for (int i = 0; i < width * height; ++i) {
+        decorations[i] = other.decorations[i];
+    }
+}
 
 // Decoration grid helpers
 void Room::setDecoration(int x, int y, char c)
 {
     if (x < 0 || x >= width || y < 0 || y >= height) return;
-    if (decorations.isEmpty()) {
-        for (int i = 0; i < width * height; ++i) decorations.pushBack('\0');
-    }
+    allocateDecorations();
     decorations[y * width + x] = c;
 }
 
 char Room::getDecoration(int x, int y) const
 {
     if (x < 0 || x >= width || y < 0 || y >= height) return '\0';
-    if (decorations.isEmpty()) return '\0';
+    if (decorations == nullptr) return '\0';
     return decorations[y * width + x];
 }
 
 bool Room::isBlocked(int x, int y) const
 {
     if (x < 0 || x >= width || y < 0 || y >= height) return true;
-    if (decorations.isEmpty()) return false;
+    if (decorations == nullptr) return false;
     return decorations[y * width + x] != '\0';
 }
 

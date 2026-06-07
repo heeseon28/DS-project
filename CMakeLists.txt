@@ -3,9 +3,9 @@ project(DungeonExplorerPBL)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-include_directories(include)
-
+# Main game executable sources.
 set(PROJECT_SOURCES
     src/main.cpp
     src/Game.cpp
@@ -25,7 +25,10 @@ set(PROJECT_SOURCES
 )
 
 add_executable(dungeon_explorer ${PROJECT_SOURCES})
+target_include_directories(dungeon_explorer PRIVATE include)
 
+# Smoke-test executable sources. This target excludes src/main.cpp because
+# tests/ds_smoke_tests.cpp provides its own main function.
 set(TEST_SOURCES
     tests/ds_smoke_tests.cpp
     src/Direction.cpp
@@ -44,3 +47,7 @@ set(TEST_SOURCES
 )
 
 add_executable(ds_smoke_tests ${TEST_SOURCES})
+target_include_directories(ds_smoke_tests PRIVATE include)
+
+enable_testing()
+add_test(NAME ds_smoke_tests COMMAND ds_smoke_tests)

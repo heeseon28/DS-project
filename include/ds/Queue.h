@@ -3,7 +3,8 @@
 
 #include <iostream>
 
-// Linked-node queue. Used for game event processing.
+// Linked-node FIFO queue.
+// GameEvent 처리와 BattleAction 순서 결정에 사용된다.
 template <typename T>
 class Queue {
 private:
@@ -24,6 +25,7 @@ public:
         clear();
     }
 
+    // 노드 소유권을 단순하게 유지하기 위해 복사는 막는다.
     Queue(const Queue& other) = delete;
     Queue& operator=(const Queue& other) = delete;
 
@@ -38,10 +40,12 @@ public:
     void enqueue(const T& value) {
         Node* newNode = new Node(value);
 
+        // 첫 삽입이면 front와 rear가 같은 노드를 가리킨다.
         if (isEmpty()) {
             frontNode = newNode;
             rearNode = newNode;
         } else {
+            // 이후 삽입은 rear 뒤에 붙이고 rear 포인터만 갱신한다.
             rearNode->next = newNode;
             rearNode = newNode;
         }
@@ -51,6 +55,7 @@ public:
 
     bool dequeue(T& output) {
         if (isEmpty()) {
+            // 빈 큐는 꺼낼 값이 없으므로 호출자가 처리하도록 false를 반환한다.
             return false;
         }
 
@@ -58,6 +63,7 @@ public:
         output = oldFront->value;
         frontNode = frontNode->next;
 
+        // 마지막 노드를 꺼낸 경우 rear도 nullptr로 맞춰 빈 큐 상태를 유지한다.
         if (frontNode == nullptr) {
             rearNode = nullptr;
         }
@@ -72,12 +78,13 @@ public:
             return false;
         }
 
+        // peek은 값만 확인하고 노드는 제거하지 않는다.
         output = frontNode->value;
         return true;
     }
 
     void clear() {
-        // Provided cleanup helper: delete every node and reset frontNode/rearNode/count.
+        // 남은 노드를 앞에서부터 모두 삭제한다.
         while (frontNode != nullptr) {
             Node* old = frontNode;
             frontNode = frontNode->next;

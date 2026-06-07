@@ -20,6 +20,7 @@ ScoreTree::Node* ScoreTree::insertRecursive(Node* current, const ScoreRecord& re
     if (record.score < current->record.score) {
         current->left = insertRecursive(current->left, record);
     } else {
+        // 중복 점수는 오른쪽에 둔다. 같은 점수를 여러 명이 받아도 기록을 보존하기 위함이다.
         current->right = insertRecursive(current->right, record);
     }
 

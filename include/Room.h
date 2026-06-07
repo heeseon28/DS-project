@@ -18,7 +18,10 @@ private:
     int height;
     int encounterRate;
     int eventTriggerStep;
-    DynamicArray<char> decorations;
+    char* decorations;
+
+    void allocateDecorations();
+    void copyDecorationsFrom(const Room& other);
 
 public:
     Room();
@@ -29,6 +32,9 @@ public:
         const std::string& description,
         int encounterRate,
         int eventTriggerStep);
+    Room(const Room& other);
+    Room& operator=(const Room& other);
+    ~Room();
 
     int getId() const;
     std::string getName() const;

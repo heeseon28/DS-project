@@ -6,7 +6,6 @@
 #include "Item.h"
 #include "Player.h"
 #include "ds/DungeonGraph.h"
-#include "ds/DynamicArray.h"
 #include "ds/Queue.h"
 #include "ds/ScoreTree.h"
 #include "ds/Stack.h"
@@ -36,6 +35,7 @@ private:
     static const int MAX_ENCOUNTERS = 32;
     static const int MAX_ITEM_SYMBOLS = 16;
     static const int MAX_POKEDEX = 128;
+    static const int MAX_GATE_RECORDS = 16;
 
     struct PokedexEntry {
         const PokemonData* data;
@@ -58,10 +58,11 @@ private:
     EncounterSymbol encounters[MAX_ENCOUNTERS];
     ItemSymbol itemSymbols[MAX_ITEM_SYMBOLS];
     PokedexEntry pokedex[MAX_POKEDEX];
-    DynamicArray<GateRecord> gateRecords;
+    GateRecord gateRecords[MAX_GATE_RECORDS];
     int encounterCount;
     int itemSymbolCount;
     int pokedexCount;
+    int gateRecordCount;
     int companionIndex;
     bool running;
     int roomIdPallet;
@@ -84,7 +85,8 @@ private:
     void showPlayerStatus() const;
     void spawnMewInPallet();
     void addRoomItem(int roomId, int x, int y, const Item& item);
-    void addRandomRoomItem(int roomId, const DynamicArray<std::string>& pool, int spawnChancePercent = 70);
+    void addRandomRoomItem(int roomId, const char* const itemPool[], int poolCount, int spawnChancePercent = 70);
+    void addGateRecord(int roomId, int x, int y, int targetRoomId, int targetX, int targetY);
     void addEncounterSymbol(int roomId, int x, int y, const char* pokemonName, char symbol);
     void addRandomEncounterSymbol(int roomId, bool safariRates = false);
     void resetRoomEncounters(int roomId, int count, bool safariRates = false);
@@ -110,7 +112,7 @@ private:
     void takeItem(const std::string& itemName);
     void promptTakeItem();
     void promptEquipItem();
-    bool startPokemonBattle(const std::string& pokemonName);
+    bool startPokemonBattle(const std::string& pokemonName, bool resumeFieldBgmAfterBattle = true);
     bool startProfessorBattle();
     void startEncounterBattle(EncounterSymbol& encounter);
     void processOneEvent();

@@ -1,5 +1,4 @@
 #include "ds/Inventory.h"
-#include "ds/DynamicArray.h"
 #include <iostream>
 
 Inventory::Inventory() : head(nullptr), count(0) {}
@@ -103,25 +102,32 @@ void Inventory::print(const std::string& equippedWeapon, const std::string& equi
 
     std::cout << "가방 (" << count << "개):\n";
 
-    // 링크드 리스트를 동적 배열로 복사 후 이름순 정렬
-    DynamicArray<const Item*> items;
-    for (Node* cur = head; cur != nullptr; cur = cur->next)
-        items.pushBack(&cur->item);
+    // 출력 순서만 바꾸기 위해 노드 자체는 건드리지 않고 포인터 배열만 임시로 만든다.
+    const Item** items = new const Item*[count];
+    int index = 0;
+    for (Node* cur = head; cur != nullptr; cur = cur->next) {
+        items[index] = &cur->item;
+        ++index;
+    }
 
     if (sorted) {
-        // 삽입 정렬: 아이템 개수가 적어 단순한 정렬로 충분
-        for (int i = 1; i < items.size(); ++i) {
-            const Item* key = items[i];
-            int j = i - 1;
-            while (j >= 0 && items[j]->getName() > key->getName()) {
-                items[j + 1] = items[j];
-                --j;
+        // STL 정렬 대신 직접 선택 정렬을 사용한다.
+        for (int i = 0; i < count - 1; ++i) {
+            int bestIndex = i;
+            for (int j = i + 1; j < count; ++j) {
+                if (items[j]->getName() < items[bestIndex]->getName()) {
+                    bestIndex = j;
+                }
             }
-            items[j + 1] = key;
+            if (bestIndex != i) {
+                const Item* temp = items[i];
+                items[i] = items[bestIndex];
+                items[bestIndex] = temp;
+            }
         }
     }
 
-    for (int i = 0; i < items.size(); ++i) {
+    for (int i = 0; i < count; ++i) {
         const Item* item = items[i];
         const std::string& n = item->getName();
         bool equipped = (!equippedWeapon.empty() && n == equippedWeapon) ||
@@ -130,4 +136,6 @@ void Inventory::print(const std::string& equippedWeapon, const std::string& equi
         if (equipped) std::cout << "[장착] ";
         item->print();
     }
+
+    delete[] items;
 }
