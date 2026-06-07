@@ -2,7 +2,9 @@
 #include "Item.h"
 #include "ItemFactory.h"
 #include "Player.h"
+#include "SpriteAssets.h"
 #include "ds/DungeonGraph.h"
+#include "ds/HuffmanCodec.h"
 #include "ds/Inventory.h"
 #include "ds/Queue.h"
 #include "ds/ScoreTree.h"
@@ -108,6 +110,18 @@ void testScoreTree() {
     assert(!tree.containsPlayer("Unknown"));
 }
 
+void testHuffmanCodec() {
+    std::string sprite = "..........\n##########\n....##....\n";
+    HuffmanCodec::Result result = HuffmanCodec::compressAndDecode(sprite);
+    assert(result.decodedText == sprite);
+    assert(result.originalByteCount == static_cast<int>(sprite.size()));
+    assert(result.uniqueSymbolCount >= 3);
+    assert(result.compressedBitCount < result.originalByteCount * 8);
+    assert(HuffmanCodec::decodeSprite(sprite.c_str()) == sprite);
+    assert(!HuffmanCodec::decodeSprite(&SPRITE_03).empty());
+    assert(!HuffmanCodec::decodeSprite(&OAK_SPRITE).empty());
+}
+
 int main() {
     std::cout << "Running smoke tests.\n";
     testInventory();
@@ -118,6 +132,7 @@ int main() {
     testGraph();
     testSorting();
     testScoreTree();
+    testHuffmanCodec();
     std::cout << "All smoke tests passed.\n";
     return 0;
 }

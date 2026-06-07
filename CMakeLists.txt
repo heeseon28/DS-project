@@ -11,6 +11,8 @@ set(PROJECT_SOURCES
     src/Game.cpp
     src/BattleSystem.cpp
     src/BgmPlayer.cpp
+    src/HuffmanCodec.cpp
+    src/SpriteAssets.cpp
     src/PokemonFactory.cpp
     src/ItemFactory.cpp
     src/Direction.cpp
@@ -34,6 +36,8 @@ set(TEST_SOURCES
     src/Direction.cpp
     src/BattleSystem.cpp
     src/BgmPlayer.cpp
+    src/HuffmanCodec.cpp
+    src/SpriteAssets.cpp
     src/PokemonFactory.cpp
     src/ItemFactory.cpp
     src/Player.cpp

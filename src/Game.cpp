@@ -3,6 +3,7 @@
 #include "BgmPlayer.h"
 #include "ItemFactory.h"
 #include "PokemonFactory.h"
+#include "ds/HuffmanCodec.h"
 #include "ds/Sorting.h"
 #include <cctype>
 #include <cstdlib>
@@ -16,6 +17,7 @@
 
 namespace
 {
+    // Game.cpp 내부에서만 사용하는 기본 아이템 풀과 맵 장식 데이터.
     const char *const BASIC_ITEM_POOL[] = {"몬스터볼", "풀회복약"};
     const int BASIC_ITEM_POOL_COUNT = sizeof(BASIC_ITEM_POOL) / sizeof(BASIC_ITEM_POOL[0]);
 
@@ -37,6 +39,7 @@ namespace
     const int VIRIDIAN_GYM_ROW_COUNT = sizeof(VIRIDIAN_GYM_ROWS) / sizeof(VIRIDIAN_GYM_ROWS[0]);
     const int VIRIDIAN_GYM_ROW_WIDTH = 19;
 
+    // 키 입력을 게임 명령으로 정규화하기 위한 내부 액션 enum.
     enum class InputAction
     {
         None,
@@ -58,12 +61,14 @@ namespace
         Quit
     };
 
+    // 방향 이동과 일반 명령을 하나의 입력 결과로 묶는다.
     struct GameInput
     {
         InputAction action;
         Direction direction;
     };
 
+    // 터미널을 raw mode로 잠깐 전환해 방향키를 즉시 읽고, 소멸자에서 원복한다.
     class RawTerminalGuard
     {
     private:
@@ -96,17 +101,20 @@ namespace
         }
     };
 
+    // ANSI escape sequence로 화면을 지운다.
     void clearScreen()
     {
         std::cout << "\033[2J\033[H";
     }
 
+    // 입력 처리 함수에서 간단히 GameInput을 만들기 위한 작은 helper.
     GameInput makeInput(InputAction action, Direction direction = Direction::Invalid)
     {
         GameInput input = {action, direction};
         return input;
     }
 
+    // ElementType enum을 화면 표시용 한국어 문자열로 변환한다.
     const char *elementToKorean(ElementType element)
     {
         switch (element)
@@ -126,6 +134,7 @@ namespace
         }
     }
 
+    // WASD와 단축키 문자를 내부 InputAction으로 변환한다.
     GameInput decodeCharacter(char key)
     {
         char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(key)));
@@ -214,6 +223,7 @@ namespace
         return makeInput(InputAction::None);
     }
 
+    // 터미널/비터미널 입력을 모두 처리한다. 방향키 escape sequence도 여기서 해석한다.
     GameInput readGameInput()
     {
         char key = 0;
@@ -268,6 +278,7 @@ namespace
         return decodeCharacter(key);
     }
 
+    // 상호작용 후 사용자가 내용을 읽을 시간을 주기 위한 공통 대기 함수.
     void waitForEnter()
     {
         if (!isatty(STDIN_FILENO))
@@ -281,6 +292,7 @@ namespace
         std::getline(std::cin, unused);
     }
 
+    // 오박사 이벤트 대사를 한 줄씩 천천히 보여주기 위한 출력 helper.
     void printDelayedLine(const std::string &line)
     {
         std::cout << line << "\n";
@@ -289,6 +301,7 @@ namespace
     }
 }
 
+// 게임 전체 상태를 초기화하고 인트로, 속성 선택, 월드 생성, 기본 아이템 지급을 수행한다.
 Game::Game()
     : dungeon(),
       player("탐험가"),
@@ -316,6 +329,8 @@ Game::Game()
     showIntro();
     choosePlayerElement();
     buildSampleWorld();
+
+    // 초반 진행이 막히지 않도록 기본 포획/회복 아이템을 지급한다.
     for (int i = 0; i < 10; ++i)
     {
         player.getInventory().addItem(createItem("몬스터볼"));
@@ -327,6 +342,7 @@ Game::Game()
     seedScores();
 }
 
+// 시작 화면과 intro BGM을 출력하고, Enter 입력 후 실제 게임으로 넘어간다.
 void Game::showIntro()
 {
     BgmPlayer::playLoop("intro.mp3");
@@ -373,6 +389,7 @@ void Game::showIntro()
     clearScreen();
 }
 
+// 뮤 포획 후 임시 엔딩 화면과 ending BGM을 출력한다.
 void Game::showEnding()
 {
     BgmPlayer::stop();
@@ -420,6 +437,7 @@ void Game::showEnding()
     clearScreen();
 }
 
+// 플레이어 속성과 동행 포켓몬 속성을 합쳐 전투 버프 수치를 계산한다.
 void Game::computeElementBuffs(int &outAtk, int &outDef, int &outSpd) const
 {
     outAtk = 0;
@@ -471,6 +489,7 @@ void Game::computeElementBuffs(int &outAtk, int &outDef, int &outSpd) const
             break;
         }
 
+        // 플레이어와 동행 타입이 같으면 같은 능력치 버프 중 더 큰 쪽을 2배로 강화한다.
         if (playerElement == companion->element)
         {
             auto doublelarge = [](int &a, int &b)
@@ -500,6 +519,7 @@ void Game::computeElementBuffs(int &outAtk, int &outDef, int &outSpd) const
     outSpd = pSpd + cSpd;
 }
 
+// 게임 시작 직후 플레이어의 기본 속성을 선택한다.
 void Game::choosePlayerElement()
 {
     std::cout << "=== 속성 선택 ===\n";
@@ -547,6 +567,7 @@ void Game::choosePlayerElement()
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
 
+// 현재 방 ID에 대응하는 필드 BGM 파일명을 반환한다.
 std::string Game::getFieldBgmFileName() const
 {
     int currentRoomId = player.getCurrentRoomId();
@@ -575,6 +596,7 @@ std::string Game::getFieldBgmFileName() const
     return "";
 }
 
+// 방 이동 후 필드 BGM을 현재 지역에 맞게 갱신한다.
 void Game::updateFieldBgm() const
 {
     std::string bgmFileName = getFieldBgmFileName();
@@ -587,6 +609,7 @@ void Game::updateFieldBgm() const
     BgmPlayer::playLoop(bgmFileName);
 }
 
+// 점수, 체력, 위치, 장비 등 플레이어 상태를 한 화면에 출력한다.
 void Game::showPlayerStatus() const
 {
     const Room *room = dungeon.getRoom(player.getCurrentRoomId());
@@ -605,6 +628,7 @@ void Game::showPlayerStatus() const
               << " (방어 +" << player.getEquipmentDefenseBonus() << ")\n";
 }
 
+// 방, 게이트, 아이템, 인카운터, 체육관 이벤트까지 초기 월드를 구성한다.
 void Game::buildSampleWorld()
 {
     int pallet = dungeon.addRoom("태초마을", "모험이 시작되는 평화로운 마을이다.", 0, -1);
@@ -619,10 +643,12 @@ void Game::buildSampleWorld()
     roomIdViridianGym = viridianGym;
     roomIdSafari = safari;
 
+    // 일반 방향 연결은 그래프 구조에서 인접 지역을 설명할 때 사용된다.
     dungeon.connectRooms(pallet, Direction::North, route1, true);
     dungeon.connectRooms(route1, Direction::North, viridian, true);
     dungeon.connectRooms(route1, Direction::East, safari, true);
 
+    // 좌표 기반 게이트는 40x40 맵에서 실제로 밟는 타일 이동을 담당한다.
     dungeon.connectRoomsByGate(pallet, 39, 20, route1, 1, 20);
     dungeon.connectRoomsByGate(route1, 0, 20, pallet, 38, 20);
     dungeon.connectRoomsByGate(route1, 39, 30, viridian, 1, 20);
@@ -630,11 +656,13 @@ void Game::buildSampleWorld()
     dungeon.connectRoomsByGate(route1, 39, 10, safari, 1, 20);
     dungeon.connectRoomsByGate(safari, 0, 20, route1, 38, 10);
 
+    // 고정 아이템은 요구사항상 항상 같은 위치에 등장한다.
     addRoomItem(pallet, 5, 20, createItem("몬스터볼"));
     addRoomItem(pallet, 8, 18, createItem("풀회복약"));
     addRoomItem(pallet, 0, 0, createItem("라이플"));
     addRoomItem(route1, 5, 28, createItem("갑옷"));
 
+    // 랜덤 아이템은 지역별 탐험 보상을 조금씩 다르게 만든다.
     addRandomRoomItem(route1, BASIC_ITEM_POOL, BASIC_ITEM_POOL_COUNT);
     addRandomRoomItem(safari, BASIC_ITEM_POOL, BASIC_ITEM_POOL_COUNT);
     addRandomRoomItem(viridian, BASIC_ITEM_POOL, BASIC_ITEM_POOL_COUNT);
@@ -643,6 +671,7 @@ void Game::buildSampleWorld()
     eventQueue.enqueue(GameEvent("태초마을 게시판에서 탐험 팁을 확인했다. 점수 +10", 10, 0));
     eventQueue.enqueue(GameEvent("상비약을 정리하며 컨디션을 회복했다. 체력 +10", 0, 10));
 
+    // 필드 몬스터 심볼은 방 진입/초기화 시 다시 배치된다.
     for (int i = 0; i < 5; ++i)
         addRandomEncounterSymbol(route1);
     for (int i = 0; i < 10; ++i)
@@ -738,6 +767,7 @@ void Game::buildSampleWorld()
     }
 }
 
+// BST 자료구조 시연을 위해 기본 점수 데이터를 넣는다.
 void Game::seedScores()
 {
     // BST 시연용 초기 점수 기록. V 키와 종료 화면에서 내림차순으로 출력된다.
@@ -746,6 +776,7 @@ void Game::seedScores()
     scoreTree.insert(ScoreRecord("Green", 95));
 }
 
+// Room의 아이템 목록과 화면용 ItemSymbol 배열을 동시에 갱신한다.
 void Game::addRoomItem(int roomId, int x, int y, const Item &item)
 {
     Room *room = dungeon.getRoom(roomId);
@@ -765,6 +796,7 @@ void Game::addRoomItem(int roomId, int x, int y, const Item &item)
     ++itemSymbolCount;
 }
 
+// 지정된 아이템 풀에서 확률적으로 하나를 뽑아 현재 방의 임의 좌표에 배치한다.
 void Game::addRandomRoomItem(int roomId, const char *const itemPool[], int poolCount, int spawnChancePercent)
 {
     if (itemPool == nullptr || poolCount <= 0)
@@ -782,6 +814,7 @@ void Game::addRandomRoomItem(int roomId, const char *const itemPool[], int poolC
     addRoomItem(roomId, x, y, createItem(itemName));
 }
 
+// 그래프 게이트와 화면 장식 좌표가 어긋날 때를 대비한 보조 게이트 기록이다.
 void Game::addGateRecord(int roomId, int x, int y, int targetRoomId, int targetX, int targetY)
 {
     // DungeonGraph가 1차 권위이고, 이 배열은 화면 장식과 게이트 좌표를 맞추는 보조 기록이다.
@@ -794,6 +827,7 @@ void Game::addGateRecord(int roomId, int x, int y, int targetRoomId, int targetX
     ++gateRecordCount;
 }
 
+// 맵에 보이는 M/T 심볼과 실제 전투 데이터를 연결한다.
 void Game::addEncounterSymbol(int roomId, int x, int y, const char *pokemonName, char symbol)
 {
     if (encounterCount >= MAX_ENCOUNTERS)
@@ -805,6 +839,7 @@ void Game::addEncounterSymbol(int roomId, int x, int y, const char *pokemonName,
     ++encounterCount;
 }
 
+// 특정 방의 인카운터 심볼을 지우고 새로 배치한다.
 void Game::resetRoomEncounters(int roomId, int count, bool safariRates)
 {
     // 해당 방의 encounter를 배열에서 제거 (compact)
@@ -820,6 +855,7 @@ void Game::resetRoomEncounters(int roomId, int count, bool safariRates)
         addRandomEncounterSymbol(roomId, safariRates);
 }
 
+// 방 크기 안의 랜덤 좌표에 포켓몬 심볼을 하나 만든다.
 void Game::addRandomEncounterSymbol(int roomId, bool safariRates)
 {
     Room *room = dungeon.getRoom(roomId);
@@ -831,6 +867,7 @@ void Game::addRandomEncounterSymbol(int roomId, bool safariRates)
     addEncounterSymbol(roomId, x, y, pokemon.name, 'M');
 }
 
+// 현재 좌표에 있는 활성 아이템 심볼을 찾는다.
 Game::ItemSymbol *Game::findItemAt(int roomId, int x, int y)
 {
     for (int i = 0; i < itemSymbolCount; ++i)
@@ -847,6 +884,7 @@ Game::ItemSymbol *Game::findItemAt(int roomId, int x, int y)
     return nullptr;
 }
 
+// const 맥락에서 현재 좌표의 활성 아이템 심볼을 찾는다.
 const Game::ItemSymbol *Game::findItemAt(int roomId, int x, int y) const
 {
     for (int i = 0; i < itemSymbolCount; ++i)
@@ -863,6 +901,7 @@ const Game::ItemSymbol *Game::findItemAt(int roomId, int x, int y) const
     return nullptr;
 }
 
+// 이름으로 특정 방의 아이템 심볼을 찾아 획득 처리에 사용한다.
 Game::ItemSymbol *Game::findItemSymbol(int roomId, const std::string &itemName)
 {
     for (int i = 0; i < itemSymbolCount; ++i)
@@ -878,6 +917,7 @@ Game::ItemSymbol *Game::findItemSymbol(int roomId, const std::string &itemName)
     return nullptr;
 }
 
+// 현재 좌표에 있는 활성 인카운터 심볼을 찾는다.
 Game::EncounterSymbol *Game::findEncounterAt(int roomId, int x, int y)
 {
     for (int i = 0; i < encounterCount; ++i)
@@ -894,6 +934,7 @@ Game::EncounterSymbol *Game::findEncounterAt(int roomId, int x, int y)
     return nullptr;
 }
 
+// const 맥락에서 현재 좌표의 활성 인카운터 심볼을 찾는다.
 const Game::EncounterSymbol *Game::findEncounterAt(int roomId, int x, int y) const
 {
     for (int i = 0; i < encounterCount; ++i)
@@ -910,6 +951,7 @@ const Game::EncounterSymbol *Game::findEncounterAt(int roomId, int x, int y) con
     return nullptr;
 }
 
+// 맵 한 칸을 어떤 문자로 그릴지 우선순위에 따라 결정한다.
 char Game::tileAt(int roomId, int x, int y) const
 {
     if (player.getCurrentRoomId() == roomId && player.getX() == x && player.getY() == y)
@@ -951,6 +993,7 @@ char Game::tileAt(int roomId, int x, int y) const
     return ' ';
 }
 
+// 현재 방의 40x40 맵 중 플레이어 주변 20줄을 콘솔에 렌더링한다.
 void Game::displayMap() const
 {
     clearScreen();
@@ -1027,10 +1070,12 @@ void Game::displayMap() const
     std::cout << "\n";
 }
 
+// 입력 하나를 읽어 해당 게임 명령으로 분기한다.
 void Game::handleInput()
 {
     GameInput input = readGameInput();
 
+    // 이동은 가장 자주 발생하므로 별도 화면 대기 없이 바로 처리한다.
     if (input.action == InputAction::Move)
     {
         move(input.direction);
@@ -1101,6 +1146,7 @@ void Game::handleInput()
     }
     if (input.action == InputAction::Battle)
     {
+        // 테스트용 전투는 기본 포켓몬으로 전투 시스템을 빠르게 확인하기 위한 경로다.
         bool caught = startPokemonBattle(getDefaultPokemonData().name);
         if (caught)
         {
@@ -1126,6 +1172,7 @@ void Game::handleInput()
     }
 }
 
+// 조작키와 각 기능을 간단히 안내한다.
 void Game::printHelp() const
 {
     clearScreen();
@@ -1149,6 +1196,7 @@ void Game::printHelp() const
     waitForEnter();
 }
 
+// 잡은 포켓몬을 포획 순서 또는 도감 번호 순으로 출력한다.
 void Game::showPokedex() const
 {
     clearScreen();
@@ -1176,6 +1224,7 @@ void Game::showPokedex() const
 
     if (choice == "2")
     {
+        // 도감 번호 순 정렬은 STL sort 대신 직접 선택 정렬로 구현한다.
         PokedexEntry sorted[MAX_POKEDEX];
         for (int i = 0; i < pokedexCount; ++i)
         {
@@ -1214,6 +1263,7 @@ void Game::showPokedex() const
     waitForEnter();
 }
 
+// 포획한 포켓몬 중 하나를 전투 동행으로 선택한다.
 void Game::showCompanionMenu()
 {
     clearScreen();
@@ -1272,6 +1322,7 @@ void Game::showCompanionMenu()
     waitForEnter();
 }
 
+// 도감 항목의 능력치, 동행 버프, Huffman 복원 스프라이트를 출력한다.
 void Game::printPokedexEntries(const PokedexEntry *entries, int count) const
 {
     for (int i = 0; i < count; ++i)
@@ -1316,14 +1367,15 @@ void Game::printPokedexEntries(const PokedexEntry *entries, int count) const
         }
         std::cout << "\n";
 
-        if (data->sprite != nullptr && data->sprite[0] != '\0')
+        if (data->sprite != nullptr)
         {
-            std::cout << data->sprite << "\n";
+            std::cout << HuffmanCodec::decodeSprite(data->sprite) << "\n";
         }
     }
     std::cout << "----------------------------------------\n";
 }
 
+// 포획 성공 시 중복을 검사하고 도감 배열에 새 포켓몬을 기록한다.
 void Game::recordCaughtPokemon(const PokemonData *data)
 {
     if (data == nullptr)
@@ -1358,6 +1410,7 @@ void Game::recordCaughtPokemon(const PokemonData *data)
     std::cout << "C 키로 동행 포켓몬을 설정할 수 있습니다.\n";
 }
 
+// 현재 선택된 동행 포켓몬 데이터를 반환한다.
 const PokemonData *Game::getCompanionPokemon() const
 {
     if (companionIndex < 0 || companionIndex >= pokedexCount)
@@ -1368,6 +1421,7 @@ const PokemonData *Game::getCompanionPokemon() const
     return pokedex[companionIndex].data;
 }
 
+// 오박사 격파 후 태초마을에 뮤 심볼을 한 번만 생성한다.
 void Game::spawnMewInPallet()
 {
     if (mewSpawned || roomIdPallet == -1)
@@ -1382,6 +1436,7 @@ void Game::spawnMewInPallet()
     printDelayedLine("오박사: 어서 돌아가 보거라. 그 포켓몬은 분명 너를 기다리고 있을 게다.");
 }
 
+// 현재 방 설명과 방 내부 아이템/몬스터 정보를 보여준다.
 void Game::look() const
 {
     const Room *room = dungeon.getRoom(player.getCurrentRoomId());
@@ -1394,6 +1449,7 @@ void Game::look() const
     room->printDescription();
 }
 
+// 이동, 벽 충돌, 게이트 전환, 심볼 인카운터까지 한 번의 걸음에서 처리한다.
 void Game::move(Direction direction)
 {
     const Room *room = dungeon.getRoom(player.getCurrentRoomId());
@@ -1474,6 +1530,7 @@ void Game::move(Direction direction)
 
     if (nextRoomId != -1)
     {
+        // 게이트에 올라섰다면 목적지 방과 좌표로 이동하고 방별 인카운터를 새로 배치한다.
         player.setCurrentRoomId(nextRoomId);
         player.setPosition(nextX, nextY);
         player.resetSteps();
@@ -1494,6 +1551,7 @@ void Game::move(Direction direction)
     // Removed automatic step-based event notification per user request.
 }
 
+// Stack에 저장된 이전 위치를 꺼내 되돌아간다.
 void Game::undoMove()
 {
     int roomId = -1;
@@ -1509,6 +1567,7 @@ void Game::undoMove()
     waitForEnter();
 }
 
+// 전투에서 사용한 소모품 개수만큼 인벤토리에서 제거한다.
 void Game::removeInventoryItems(const std::string &itemName, int count)
 {
     for (int i = 0; i < count; ++i)
@@ -1520,6 +1579,7 @@ void Game::removeInventoryItems(const std::string &itemName, int count)
     }
 }
 
+// 방에서 아이템을 꺼내 인벤토리에 넣고, 화면 심볼을 비활성화한다.
 void Game::takeItem(const std::string &itemName)
 {
     if (itemName.empty())
@@ -1554,6 +1614,7 @@ void Game::takeItem(const std::string &itemName)
     item.print();
 }
 
+// 현재 칸 아이템을 우선 줍고, 없으면 이름 입력 방식으로 획득을 시도한다.
 void Game::promptTakeItem()
 {
     ItemSymbol *itemHere = findItemAt(
@@ -1578,6 +1639,7 @@ void Game::promptTakeItem()
     waitForEnter();
 }
 
+// 인벤토리에서 장비 아이템을 장착하거나 이미 장착된 장비를 해제한다.
 void Game::promptEquipItem()
 {
     clearScreen();
@@ -1603,6 +1665,7 @@ void Game::promptEquipItem()
     waitForEnter();
 }
 
+// 일반 포켓몬 전투를 생성하고, 장비/속성/동행 버프와 소모품 수량을 반영한다.
 bool Game::startPokemonBattle(const std::string &pokemonName, bool resumeFieldBgmAfterBattle)
 {
     const PokemonData *pokemonData = findPokemonData(pokemonName);
@@ -1623,6 +1686,7 @@ bool Game::startPokemonBattle(const std::string &pokemonName, bool resumeFieldBg
     int speed = 10;
     ElementType element = playerElement;
 
+    // 동행 포켓몬이 있으면 플레이어 대신 동행 포켓몬의 기본 스탯으로 전투한다.
     if (companion != nullptr)
     {
         battleName = companion->name;
@@ -1634,6 +1698,7 @@ bool Game::startPokemonBattle(const std::string &pokemonName, bool resumeFieldBg
         std::cout << "[동행] " << companion->name << "이(가) 전투에 나섭니다!\n";
     }
 
+    // 장비 보너스는 포켓몬/플레이어 기본 스탯 위에 더한다.
     attack += player.getEquipmentAttackBonus();
     defense += player.getEquipmentDefenseBonus();
 
@@ -1667,6 +1732,7 @@ bool Game::startPokemonBattle(const std::string &pokemonName, bool resumeFieldBg
         std::cout << "\n";
     }
 
+    // BattleSystem에 넘길 플레이어/적 전투 객체를 구성한다.
     PlayerBattle playerBattle(
         battleName,
         maxHp,
@@ -1691,6 +1757,7 @@ bool Game::startPokemonBattle(const std::string &pokemonName, bool resumeFieldBg
         std::cout << "패배... 점수 -100 (현재 점수: " << player.getScore() << ")\n";
     }
 
+    // BattleSystem 내부에서 감소한 소모품 수량을 실제 인벤토리에 반영한다.
     removeInventoryItems("몬스터볼", monsterBalls - playerBattle.getMonsterBallCount());
     removeInventoryItems("풀회복약", fullHeals - playerBattle.getFullHealCount());
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -1698,6 +1765,7 @@ bool Game::startPokemonBattle(const std::string &pokemonName, bool resumeFieldBg
     return caught;
 }
 
+// 체육관 보스인 오박사 전투를 별도 능력치와 대사로 시작한다.
 bool Game::startProfessorBattle()
 {
     printDelayedLine("오박사: 여기까지 왔구나.");
@@ -1750,6 +1818,7 @@ bool Game::startProfessorBattle()
         fullHeals);
     EnemyBattle enemy("오박사", 120, 45, 38, 55, ElementType::Electric); // 오박사 능력치
 
+    // 오박사는 포획 성공 또는 HP 0 처리 모두 격파로 인정한다.
     BattleSystem battleSystem;
     bool caught = battleSystem.startBattle(playerBattle, enemy);
     updateFieldBgm();
@@ -1768,6 +1837,7 @@ bool Game::startProfessorBattle()
     return defeatedProfessor;
 }
 
+// 맵 심볼과 접촉했을 때 오박사/뮤/일반 포켓몬 이벤트를 분기한다.
 void Game::startEncounterBattle(EncounterSymbol &encounter)
 {
     clearScreen();
@@ -1814,6 +1884,7 @@ void Game::startEncounterBattle(EncounterSymbol &encounter)
     waitForEnter();
 }
 
+// Queue에 쌓인 이벤트 하나를 꺼내 점수/체력에 반영한다.
 void Game::processOneEvent()
 {
     GameEvent event;
@@ -1829,12 +1900,14 @@ void Game::processOneEvent()
     showPlayerStatus();
 }
 
+// BST에 저장된 점수 기록을 내림차순으로 출력한다.
 void Game::showScores() const
 {
     std::cout << "점수 기록:\n";
     scoreTree.printDescending();
 }
 
+// 현재 방의 아이템을 복사해 가치 기준으로 정렬해서 보여준다.
 void Game::showSortedRoomItems() const
 {
     const Room *room = dungeon.getRoom(player.getCurrentRoomId());
@@ -1869,6 +1942,7 @@ void Game::showSortedRoomItems() const
     delete[] items;
 }
 
+// 메인 게임 루프. BGM 갱신, 화면 출력, 입력 처리를 반복하고 종료 시 점수를 기록한다.
 void Game::run()
 {
     while (running && player.isAlive())

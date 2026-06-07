@@ -2,6 +2,7 @@
 #define ITEM_FACTORY_H
 
 #include "Item.h"
+#include "ds/HuffmanCodec.h"
 #include <string>
 
 struct ItemData {
@@ -9,7 +10,7 @@ struct ItemData {
     const char* description;
     int value;
     const char* effect;
-    const char* sprite;
+    const HuffmanEncodedSprite* sprite;
 };
 
 const ItemData* findItemData(const std::string& name);

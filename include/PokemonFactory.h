@@ -2,6 +2,7 @@
 #define POKEMON_FACTORY_H
 
 #include "BattleSystem.h"
+#include "ds/HuffmanCodec.h"
 #include <string>
 
 struct PokemonData {
@@ -12,7 +13,7 @@ struct PokemonData {
     int speed;
     int spawnRate; // 출현 확률 가중치 (1~100, 총 스탯이 높을수록 낮음) -dc
     ElementType element;
-    const char* sprite;
+    const HuffmanEncodedSprite* sprite;
 };
 
 const PokemonData* findPokemonData(const std::string& name);

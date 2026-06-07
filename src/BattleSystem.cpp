@@ -1,18 +1,12 @@
 #include "BattleSystem.h" //
 #include "BgmPlayer.h"
 #include "PokemonFactory.h"
+#include "SpriteAssets.h"
+#include "ds/HuffmanCodec.h"
 #include <cstdlib>
 #include <ctime>
-#include <fstream>
 #include <iostream>
-#include <limits.h>
-#include <sstream>
 #include <string>
-#include <unistd.h>
-
-#if defined(__APPLE__)
-#include <mach-o/dyld.h>
-#endif
 
 namespace
 {
@@ -61,139 +55,19 @@ namespace
         BgmPlayer::playLoop(getBattleBgmFileName(pokemonName));
     }
 
-    std::string readTextFile(const std::string& path)
+    void printPokemonSprite(const HuffmanEncodedSprite *sprite)
     {
-        std::ifstream file(path);
-        if (!file.good())
-        {
-            return "";
-        }
-
-        std::ostringstream buffer;
-        buffer << file.rdbuf();
-        return buffer.str();
-    }
-
-    std::string joinPath(const std::string& basePath, const std::string& relativePath)
-    {
-        if (basePath.empty() || basePath == ".")
-        {
-            return relativePath;
-        }
-
-        if (basePath[basePath.size() - 1] == '/')
-        {
-            return basePath + relativePath;
-        }
-
-        return basePath + "/" + relativePath;
-    }
-
-    std::string parentDirectory(const std::string& path)
-    {
-        if (path.empty() || path == "/")
-        {
-            return "";
-        }
-
-        std::string trimmed = path;
-        while (trimmed.size() > 1 && trimmed[trimmed.size() - 1] == '/')
-        {
-            trimmed.erase(trimmed.size() - 1);
-        }
-
-        std::string::size_type slash = trimmed.find_last_of('/');
-        if (slash == std::string::npos)
-        {
-            return "";
-        }
-        if (slash == 0)
-        {
-            return "/";
-        }
-
-        return trimmed.substr(0, slash);
-    }
-
-    std::string loadTextAssetFromDirectoryTree(
-        const std::string& startDirectory,
-        const std::string& relativePath)
-    {
-        std::string directory = startDirectory;
-        for (int depth = 0; depth < 10 && !directory.empty(); ++depth)
-        {
-            std::string text = readTextFile(joinPath(directory, relativePath));
-            if (!text.empty())
-            {
-                return text;
-            }
-
-            directory = parentDirectory(directory);
-        }
-
-        return "";
-    }
-
-    std::string loadTextAsset(const std::string& relativePath)
-    {
-        const std::string directText = readTextFile(relativePath);
-        if (!directText.empty())
-        {
-            return directText;
-        }
-
-        char cwd[PATH_MAX];
-        if (getcwd(cwd, sizeof(cwd)) != nullptr)
-        {
-            std::string text = loadTextAssetFromDirectoryTree(cwd, relativePath);
-            if (!text.empty())
-            {
-                return text;
-            }
-        }
-
-#if defined(__APPLE__)
-        uint32_t executablePathSize = PATH_MAX;
-        char executablePath[PATH_MAX];
-        if (_NSGetExecutablePath(executablePath, &executablePathSize) == 0)
-        {
-            char resolvedPath[PATH_MAX];
-            const char *path = executablePath;
-            if (realpath(executablePath, resolvedPath) != nullptr)
-            {
-                path = resolvedPath;
-            }
-
-            std::string text = loadTextAssetFromDirectoryTree(
-                parentDirectory(path),
-                relativePath);
-            if (!text.empty())
-            {
-                return text;
-            }
-        }
-#endif
-
-        return "";
-    }
-
-    void printPokemonSprite(const char *sprite)
-    {
-        if (sprite == nullptr || sprite[0] == '\0')
+        if (sprite == nullptr)
         {
             return;
         }
 
-        std::cout << sprite << "\n";
+        std::cout << HuffmanCodec::decodeSprite(sprite) << "\n";
     }
 
     void printProfessorSprite()
     {
-        std::string sprite = loadTextAsset("data/oak_sprite.txt");
-        if (!sprite.empty())
-        {
-            std::cout << sprite << "\n";
-        }
+        std::cout << HuffmanCodec::decodeSprite(&OAK_SPRITE) << "\n";
     }
 }
 

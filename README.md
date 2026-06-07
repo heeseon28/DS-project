@@ -103,6 +103,7 @@ Make 방식(`make`, `make test`)을 사용하면 됩니다.
 | Binary search tree | `include/ds/ScoreTree.h`, `src/ScoreTree.cpp` | Score records and ranking display |
 | Graph | `include/ds/DungeonGraph.h`, `src/DungeonGraph.cpp` | Room connectivity and gate transitions |
 | Sorting algorithm | `include/ds/Sorting.h`, `src/Sorting.cpp` | Item and score ordering |
+| Huffman coding | `include/ds/HuffmanCodec.h`, `src/HuffmanCodec.cpp` | Sprite text compression and decoding |
 
 ## 자료구조 실제 사용 위치
 
@@ -115,10 +116,27 @@ Make 방식(`make`, `make test`)을 사용하면 됩니다.
 | Binary search tree | `include/ds/ScoreTree.h`, `src/ScoreTree.cpp` | `src/Game.cpp` | 초기 점수와 최종 점수를 삽입하고, `V` 입력 및 게임 종료 화면에서 점수를 내림차순으로 출력한다. |
 | Graph | `include/ds/DungeonGraph.h`, `src/DungeonGraph.cpp` | `src/Game.cpp` | 태초마을, 1번 도로, 상록시티, 사파리존, 체육관 연결을 표현한다. 이동, 게이트 전환, `M` 입력의 연결 지도 출력에 사용된다. |
 | Sorting algorithm | `include/ds/Sorting.h`, `src/Sorting.cpp` | `src/Game.cpp`, `tests/ds_smoke_tests.cpp` | `R` 입력 시 현재 지역 아이템을 가치 기준 내림차순으로 정렬해 보여준다. |
+| Huffman coding | `include/ds/HuffmanCodec.h`, `src/HuffmanCodec.cpp` | `src/SpriteAssets.cpp`, `src/BattleSystem.cpp`, `src/Game.cpp`, `src/ItemFactory.cpp`, `tests/ds_smoke_tests.cpp` | 포켓몬, 오박사, 아이템 ASCII 스프라이트 원문을 압축 바이트와 빈도표로 저장하고, 출력 시 Huffman tree를 재구성해 원래 텍스트로 복원한다. |
+
+## Additional Work: Huffman Coding Sprite Compression
+
+스프라이트는 공백, `=`, `+`, `#`처럼 반복되는 문자가 매우 많다. 이 특성을 이용해 원본 ASCII art를 그대로 `PokemonFactory.cpp`에 저장하지 않고, Huffman coding으로 압축한 에셋으로 분리했다.
+
+구현 흐름은 다음과 같다.
+
+1. 원본 스프라이트 텍스트의 UTF-8 byte 빈도를 센다.
+2. 빈도가 낮은 두 노드를 반복적으로 합쳐 Huffman tree를 만든다.
+3. 자주 나오는 byte에는 짧은 bit code를, 드문 byte에는 긴 bit code를 부여한다.
+4. 원본 스프라이트를 bitstream으로 압축하고, 8bit 단위로 packed byte 배열에 저장한다.
+5. `src/SpriteAssets.cpp`에는 원본 텍스트 대신 compressed bytes, bit count, original byte count, frequency table만 남긴다.
+6. 게임이 스프라이트를 출력할 때 `HuffmanCodec::decodeSprite()`가 frequency table로 tree를 다시 만들고, packed bits를 읽어 원래 ASCII sprite를 복원한다.
+
+이 방식으로 `src/PokemonFactory.cpp`는 포켓몬 능력치와 compressed sprite pointer만 관리하고, 실제 스프라이트 데이터는 `src/SpriteAssets.cpp`에 압축 형태로 저장된다. 제출된 소스에는 이미 생성된 C++ 압축 에셋이 포함되어 있으므로, 게임 빌드와 실행에 별도 생성 도구가 필요하지 않다.
 
 ## 외부 자료 및 AI 도움 공개
 
 - 포켓몬 ASCII 스프라이트는 외부 Pokedex 사이트의 포켓몬 정보를 참고해 프로젝트에 맞게 텍스트 형태로 정리했다.
+- ASCII 스프라이트는 Huffman coding으로 압축된 `src/SpriteAssets.cpp`의 byte array와 frequency table에서 복원한다.
 - BGM 파일과 스프라이트 파일은 게임 연출용 에셋이며, 자료구조 구현 자체를 대체하지 않는다.
 - AI 도구는 코드 디버깅, 요구사항 점검, README 정리, 빌드 오류 분석 보조에 사용했다.
 - 최종 코드는 팀이 직접 빌드와 테스트를 실행하며 검증했다. 검증 명령은 `make`, `make test`이다.

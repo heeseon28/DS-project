@@ -1,8 +1,8 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -pedantic -Iinclude
 
-APP_SOURCES = src/main.cpp src/Game.cpp src/Direction.cpp src/Player.cpp src/BattleSystem.cpp src/BgmPlayer.cpp src/PokemonFactory.cpp src/ItemFactory.cpp src/Room.cpp src/Item.cpp src/Monster.cpp src/Inventory.cpp src/DungeonGraph.cpp src/ScoreTree.cpp src/Sorting.cpp
-TEST_SOURCES = tests/ds_smoke_tests.cpp src/Direction.cpp src/Player.cpp src/BattleSystem.cpp src/BgmPlayer.cpp src/PokemonFactory.cpp src/ItemFactory.cpp src/Room.cpp src/Item.cpp src/Monster.cpp src/Inventory.cpp src/DungeonGraph.cpp src/ScoreTree.cpp src/Sorting.cpp
+APP_SOURCES = src/main.cpp src/Game.cpp src/Direction.cpp src/Player.cpp src/BattleSystem.cpp src/BgmPlayer.cpp src/HuffmanCodec.cpp src/SpriteAssets.cpp src/PokemonFactory.cpp src/ItemFactory.cpp src/Room.cpp src/Item.cpp src/Monster.cpp src/Inventory.cpp src/DungeonGraph.cpp src/ScoreTree.cpp src/Sorting.cpp
+TEST_SOURCES = tests/ds_smoke_tests.cpp src/Direction.cpp src/Player.cpp src/BattleSystem.cpp src/BgmPlayer.cpp src/HuffmanCodec.cpp src/SpriteAssets.cpp src/PokemonFactory.cpp src/ItemFactory.cpp src/Room.cpp src/Item.cpp src/Monster.cpp src/Inventory.cpp src/DungeonGraph.cpp src/ScoreTree.cpp src/Sorting.cpp
 
 all: dungeon_explorer
 
