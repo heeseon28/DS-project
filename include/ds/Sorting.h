@@ -2,9 +2,10 @@
 #define SORTING_H
 
 #include "Item.h"
-#include "ds/ScoreTree.h"
+#include "PokemonFactory.h"
 
-void sortItemsByValueDescending(Item* items, int count);
-void sortScoresDescending(ScoreRecord* records, int count);
+void sortItemsByNameAscending(Item* items, int count);
+void sortItemsByNameAscending(const Item** items, int count);
+void sortPokedexByNumber(PokedexEntry* entries, int count);
 
 #endif

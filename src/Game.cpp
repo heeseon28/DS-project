@@ -1224,33 +1224,13 @@ void Game::showPokedex() const
 
     if (choice == "2")
     {
-        // 도감 번호 순 정렬은 STL sort 대신 직접 선택 정렬로 구현한다.
         PokedexEntry sorted[MAX_POKEDEX];
         for (int i = 0; i < pokedexCount; ++i)
         {
             sorted[i] = pokedex[i];
         }
 
-        for (int i = 0; i < pokedexCount - 1; ++i)
-        {
-            int minIndex = i;
-            for (int j = i + 1; j < pokedexCount; ++j)
-            {
-                int currentNumber = getPokemonNumber(sorted[j].data->name);
-                int minNumber = getPokemonNumber(sorted[minIndex].data->name);
-                if (currentNumber < minNumber)
-                {
-                    minIndex = j;
-                }
-            }
-
-            if (minIndex != i)
-            {
-                PokedexEntry temp = sorted[i];
-                sorted[i] = sorted[minIndex];
-                sorted[minIndex] = temp;
-            }
-        }
+        sortPokedexByNumber(sorted, pokedexCount);
 
         std::cout << "\n[도감 번호 순]\n";
         printPokedexEntries(sorted, pokedexCount);
@@ -1930,9 +1910,9 @@ void Game::showSortedRoomItems() const
         items[i] = room->getItem(i);
     }
 
-    sortItemsByValueDescending(items, count);
+    sortItemsByNameAscending(items, count);
 
-    std::cout << "현재 지역 아이템 가치순:\n";
+    std::cout << "현재 지역 아이템 이름순:\n";
     for (int i = 0; i < count; ++i)
     {
         std::cout << "  - ";

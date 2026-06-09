@@ -1,4 +1,5 @@
 #include "ds/Inventory.h"
+#include "ds/Sorting.h"
 #include <iostream>
 
 Inventory::Inventory() : head(nullptr), count(0) {}
@@ -111,20 +112,7 @@ void Inventory::print(const std::string& equippedWeapon, const std::string& equi
     }
 
     if (sorted) {
-        // STL 정렬 대신 직접 선택 정렬을 사용한다.
-        for (int i = 0; i < count - 1; ++i) {
-            int bestIndex = i;
-            for (int j = i + 1; j < count; ++j) {
-                if (items[j]->getName() < items[bestIndex]->getName()) {
-                    bestIndex = j;
-                }
-            }
-            if (bestIndex != i) {
-                const Item* temp = items[i];
-                items[i] = items[bestIndex];
-                items[bestIndex] = temp;
-            }
-        }
+        sortItemsByNameAscending(items, count);
     }
 
     for (int i = 0; i < count; ++i) {

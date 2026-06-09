@@ -91,14 +91,14 @@ void testGraph() {
 
 void testSorting() {
     Item items[3] = {
-        Item("low", "", 1),
-        Item("high", "", 10),
-        Item("mid", "", 5)
+        Item("포션", "", 1),
+        Item("몬스터볼", "", 10),
+        Item("구슬", "", 5)
     };
-    sortItemsByValueDescending(items, 3);
-    assert(items[0].getValue() == 10);
-    assert(items[1].getValue() == 5);
-    assert(items[2].getValue() == 1);
+    sortItemsByNameAscending(items, 3);
+    assert(items[0].getName() == "구슬");
+    assert(items[1].getName() == "몬스터볼");
+    assert(items[2].getName() == "포션");
 }
 
 void testScoreTree() {

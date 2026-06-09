@@ -5,13 +5,12 @@
 #include "GameEvent.h"
 #include "Item.h"
 #include "Player.h"
+#include "PokemonFactory.h"
 #include "ds/DungeonGraph.h"
 #include "ds/Queue.h"
 #include "ds/ScoreTree.h"
 #include "ds/Stack.h"
 #include <string>
-
-struct PokemonData;
 
 class Game {
 private:
@@ -36,11 +35,6 @@ private:
     static const int MAX_ITEM_SYMBOLS = 16;
     static const int MAX_POKEDEX = 128;
     static const int MAX_GATE_RECORDS = 16;
-
-    struct PokedexEntry {
-        const PokemonData* data;
-        int caughtOrder;
-    };
 
     struct GateRecord {
         int roomId;
