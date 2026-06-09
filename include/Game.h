@@ -69,7 +69,8 @@ private:
     bool mewSpawned;
 
     void buildSampleWorld();
-    void seedScores();
+    void loadScores();
+    void saveScore();
     void showIntro();
     void showEnding();
     void choosePlayerElement();

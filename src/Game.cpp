@@ -5,6 +5,7 @@
 #include "PokemonFactory.h"
 #include "ds/HuffmanCodec.h"
 #include "ds/Sorting.h"
+#include <fstream>
 #include <cctype>
 #include <cstdlib>
 #include <ctime>
@@ -339,7 +340,7 @@ Game::Game()
     {
         player.getInventory().addItem(createItem("풀회복약"));
     }
-    seedScores();
+    loadScores();
 }
 
 // 시작 화면과 intro BGM을 출력하고, Enter 입력 후 실제 게임으로 넘어간다.
@@ -386,6 +387,14 @@ void Game::showIntro()
     std::getline(std::cin, unused);
 
     BgmPlayer::stop();
+    clearScreen();
+
+    std::cout << "플레이어 이름을 입력하세요 (Enter → Explorer): ";
+    std::string inputName;
+    std::getline(std::cin, inputName);
+    if (!inputName.empty()) {
+        player.setName(inputName);
+    }
     clearScreen();
 }
 
@@ -767,13 +776,42 @@ void Game::buildSampleWorld()
     }
 }
 
-// BST 자료구조 시연을 위해 기본 점수 데이터를 넣는다.
-void Game::seedScores()
+// scores.txt에서 기존 점수를 읽어 BST에 삽입한다.
+// 파일이 없거나 비어 있으면 샘플 데이터를 넣고 파일에도 기록한다.
+void Game::loadScores()
 {
-    // BST 시연용 초기 점수 기록. V 키와 종료 화면에서 내림차순으로 출력된다.
-    scoreTree.insert(ScoreRecord("Red", 80));
-    scoreTree.insert(ScoreRecord("Blue", 65));
-    scoreTree.insert(ScoreRecord("Green", 95));
+    std::ifstream in("scores.txt");
+    bool hasData = false;
+
+    if (in.is_open()) {
+        std::string name;
+        int score;
+        while (in >> name >> score) {
+            scoreTree.insert(ScoreRecord(name, score));
+            hasData = true;
+        }
+        in.close();
+    }
+
+    if (!hasData) {
+        scoreTree.insert(ScoreRecord("Red", 80));
+        scoreTree.insert(ScoreRecord("Blue", 65));
+        scoreTree.insert(ScoreRecord("Green", 95));
+
+        std::ofstream out("scores.txt");
+        if (out.is_open()) {
+            out << "Red 80\n" << "Blue 65\n" << "Green 95\n";
+        }
+    }
+}
+
+// 플레이어 점수를 scores.txt에 한 줄 추가한다.
+void Game::saveScore()
+{
+    std::ofstream out("scores.txt", std::ios::app);
+    if (out.is_open()) {
+        out << player.getName() << " " << player.getScore() << "\n";
+    }
 }
 
 // Room의 아이템 목록과 화면용 ItemSymbol 배열을 동시에 갱신한다.
@@ -1934,9 +1972,14 @@ void Game::run()
 
     BgmPlayer::stop();
     scoreTree.insert(ScoreRecord(player.getName(), player.getScore()));
+    saveScore();
+
     clearScreen();
     std::cout << "최종 상태:\n";
     showPlayerStatus();
+
+    int rank = scoreTree.getRank(player.getScore());
+    std::cout << "\n" << player.getName() << "의 최종 순위: " << rank << "위 / " << scoreTree.size() << "명\n";
     std::cout << "\n최종 점수 기록:\n";
     scoreTree.printDescending();
     std::cout << "게임을 종료합니다.\n";

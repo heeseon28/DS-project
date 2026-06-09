@@ -20,6 +20,10 @@ std::string Player::getName() const {
     return name;
 }
 
+void Player::setName(const std::string& newName) {
+    name = newName;
+}
+
 int Player::getHealth() const {
     return health;
 }
