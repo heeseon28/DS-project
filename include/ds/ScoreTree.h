@@ -11,6 +11,12 @@ struct ScoreRecord {
         : playerName(playerName), score(score) {}
 };
 
+// ScoreTree는 점수의 대소 관계를 트리 구조에 저장하는 binary search tree이다.
+// 낮은 점수는 왼쪽, 같거나 높은 점수는 오른쪽에 넣어 같은 점수를 받은 플레이어도
+// 별도 기록으로 보존한다. reverse inorder(right -> root -> left)로 순회하면
+// 점수 랭킹을 내림차순으로 바로 출력할 수 있다.
+// 단, AVL/Red-Black Tree처럼 균형을 자동으로 맞추지는 않으므로 정렬된 점수가
+// 계속 들어오면 한쪽으로 치우쳐 최악 O(n)이 될 수 있다.
 class ScoreTree {
 private:
     struct Node {

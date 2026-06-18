@@ -31,6 +31,8 @@ enum class BattleActionType // 옵션 정의 : 플레이어 공격, 적의 공�
 
 struct BattleAction
 {
+    // 한 턴에 실행될 행동을 작은 명령 객체로 표현한다. 현재는 행동 종류만 들고
+    // 있지만, 2v2/3v3 전투로 확장하면 대상 정보나 우선도 필드를 추가할 수 있다.
     BattleActionType type;
 };
 
@@ -128,6 +130,8 @@ public:
 class BattleSystem
 {
 private:
+    // 전투 한 턴의 행동 실행 순서를 저장하는 Queue이다. 속도 비교나 회복/도망
+    // 우선 처리는 enqueue 전에 결정되고, Queue는 그 순서를 FIFO로 보존한다.
     Queue<BattleAction> actionQueue;
     bool lastCatchSucceeded;
 
@@ -142,6 +146,8 @@ private:
     bool cannotMoveByParalysis(const BattleEntity &entity) const;
     void tryApplyStatusEffect(const BattleEntity &attacker, BattleEntity &defender) const;
 
+    // enqueueTurnActions는 "이번 턴에 어떤 행동이 먼저 실행될지"만 결정한다.
+    // processAction은 Queue에서 꺼낸 행동 하나를 실제 데미지/포획/회복/도망으로 반영한다.
     void enqueueTurnActions(PlayerBattle &player, EnemyBattle &enemy, BattleActionType playerAction);
     void processAction(BattleAction action, PlayerBattle &player, EnemyBattle &enemy, bool &battleEnded);
 

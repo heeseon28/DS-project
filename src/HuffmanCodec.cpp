@@ -8,6 +8,8 @@ namespace
 
     struct HuffmanNode
     {
+        // leaf 노드는 실제 문자 하나를 나타내고, internal 노드는 두 subtree의
+        // 빈도 합을 가진다. left/right는 nodes 배열 안의 인덱스이다.
         int frequency;
         int left;
         int right;
@@ -31,6 +33,8 @@ namespace
 
     int findSmallestActiveNode(const HuffmanNode nodes[], int nodeCount)
     {
+        // priority_queue 대신 active node 전체를 선형 탐색한다. 문자 종류는 최대
+        // 256개라서 구현이 단순하고, tree build 비용은 O(n^2)이다.
         int best = -1;
         for (int i = 0; i < nodeCount; ++i)
         {
@@ -59,6 +63,8 @@ namespace
 
         if (nodes[nodeIndex].leaf)
         {
+            // root에서 leaf까지 왼쪽은 0, 오른쪽은 1로 기록한 경로가 해당 문자의
+            // 가변 길이 code가 된다. 자주 나온 문자는 짧은 code를 받는다.
             // 한 종류의 문자만 있는 입력도 최소 1비트 코드로 표현한다.
             if (currentCode.empty())
             {
@@ -81,6 +87,8 @@ namespace
 
         int byteIndex = bitIndex / 8;
         int bitOffset = 7 - (bitIndex % 8);
+        // 왼쪽 bit부터 채워 SpriteAssets.cpp에 저장된 packed hex byte와
+        // decode할 때의 읽기 순서를 일치시킨다.
         bytes[byteIndex] = static_cast<unsigned char>(bytes[byteIndex] | (1 << bitOffset));
     }
 
@@ -98,6 +106,8 @@ namespace
     {
         initializeNodes(nodes);
 
+        // 저장된 frequency table만으로 압축 당시와 같은 Huffman tree를 다시 만든다.
+        // 그래서 SpriteAssets.cpp에는 raw sprite 문자열 대신 bytes + frequencies만 저장할 수 있다.
         int nodeCount = 0;
         for (int i = 0; i < frequencyCount; ++i)
         {
@@ -149,6 +159,8 @@ HuffmanCodec::Result HuffmanCodec::compressAndDecode(const std::string& text)
         return result;
     }
 
+    // 1단계: 원본 문자열에서 각 ASCII 문자의 등장 횟수를 센다.
+    // 빈도 차이가 클수록 Huffman coding의 저장 공간 절감 효과가 커진다.
     int frequencies[SYMBOL_LIMIT] = {0};
     for (int i = 0; i < static_cast<int>(text.size()); ++i)
     {
@@ -175,6 +187,7 @@ HuffmanCodec::Result HuffmanCodec::compressAndDecode(const std::string& text)
         ++result.uniqueSymbolCount;
     }
 
+    // 2단계: 가장 작은 두 active node를 반복해서 묶어 Huffman tree를 만든다.
     int activeCount = result.uniqueSymbolCount;
     while (activeCount > 1)
     {
@@ -198,6 +211,7 @@ HuffmanCodec::Result HuffmanCodec::compressAndDecode(const std::string& text)
 
     int root = findSmallestActiveNode(nodes, nodeCount);
 
+    // 3단계: tree의 root-to-leaf 경로를 문자별 bit code로 변환한다.
     std::string codes[SYMBOL_LIMIT];
     buildCodes(nodes, root, "", codes);
 
@@ -209,6 +223,7 @@ HuffmanCodec::Result HuffmanCodec::compressAndDecode(const std::string& text)
         }
     }
 
+    // 4단계: 가변 길이 code를 하나의 bitstream으로 이어 붙이고 byte 단위로 packing한다.
     int compressedByteCount = (result.compressedBitCount + 7) / 8;
     unsigned char* compressedBytes = new unsigned char[compressedByteCount];
     std::memset(compressedBytes, 0, compressedByteCount);
@@ -225,6 +240,7 @@ HuffmanCodec::Result HuffmanCodec::compressAndDecode(const std::string& text)
         }
     }
 
+    // 5단계: 테스트 편의를 위해 곧바로 decode해서 원본과 같은지 확인할 수 있게 한다.
     std::string decoded;
     decoded.reserve(text.size());
 
@@ -283,6 +299,8 @@ std::string HuffmanCodec::decodeSprite(const HuffmanEncodedSprite* sprite)
         return "";
     }
 
+    // 실행 파일에 저장된 packed sprite를 화면에 출력할 때 사용하는 경로이다.
+    // frequency table로 tree를 복원하고 bitstream을 따라가며 leaf마다 문자를 하나씩 만든다.
     HuffmanNode nodes[NODE_LIMIT];
     int root = buildTreeFromFrequencies(sprite->frequencies, sprite->frequencyCount, nodes);
     if (root < 0)

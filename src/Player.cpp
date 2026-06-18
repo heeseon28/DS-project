@@ -73,6 +73,8 @@ bool Player::move(Direction direction, int roomWidth, int roomHeight) {
 }
 
 void Player::saveMoveHistory(int roomId, int posX, int posY) {
+    // 실제 이동을 적용하기 전에 이전 방/좌표를 저장한다. Stack의 top에는 항상
+    // 가장 최근 위치가 있으므로 undo 시 바로 직전 위치부터 복원된다.
     MoveRecord record = {roomId, posX, posY};
     moveHistory.push(record);
 }
@@ -80,10 +82,14 @@ void Player::saveMoveHistory(int roomId, int posX, int posY) {
 bool Player::undoMove(int& outRoomId, int& outX, int& outY) {
     MoveRecord previous;
     if (!moveHistory.pop(previous)) {
+        // 저장된 이동 기록이 없으면 pop이 실패한다. 이 edge case를 false로 알려
+        // Game::undoMove가 화면 메시지와 흐름을 처리할 수 있게 한다.
         std::cout << "되돌릴 이동 기록이 없습니다.\n";
         return false;
     }
 
+    // pop으로 얻은 MoveRecord는 "되돌아갈 위치"이다. 현재 위치와 방 id를 복원하고,
+    // 새 방에서 다시 걸음 수를 세도록 stepsInCurrentRoom을 초기화한다.
     currentRoomId = previous.roomId;
     x = previous.x;
     y = previous.y;

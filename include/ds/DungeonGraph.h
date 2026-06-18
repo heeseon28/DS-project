@@ -15,12 +15,18 @@ struct Gate {
     Coordinate exitPos;
 };
 
+// DungeonGraph는 게임 월드를 그래프로 표현한다. Room은 node이고, 방향 이동
+// 또는 좌표 gate는 edge에 해당한다. 덕분에 이동 로직이 "if문으로 방 이름을
+// 하나하나 비교"하는 방식이 아니라, connectRooms/connectRoomsByGate로 등록한
+// 연결 정보를 조회하는 방식으로 동작한다.
 class DungeonGraph {
 private:
     static const int MAX_ROOMS = 20;
     static const int DIRECTION_COUNT = 4;
     static const int MAX_GATES_PER_ROOM = 5;
 
+    // rooms는 roomId -> Room* 매핑이다. adjacency는 동서남북 4방향 edge를
+    // 저장하고, gates는 특정 좌표를 밟았을 때 다른 방/좌표로 이동하는 edge를 저장한다.
     Room* rooms[MAX_ROOMS];
     int adjacency[MAX_ROOMS][DIRECTION_COUNT];
     Gate gates[MAX_ROOMS][MAX_GATES_PER_ROOM];

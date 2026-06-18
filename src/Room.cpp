@@ -141,10 +141,14 @@ bool Room::hasBeenVisited() const {
 }
 
 void Room::addItem(const Item& item) {
+    // 방에 아이템이 추가될 때 DynamicArray 뒤에 붙인다. 방마다 아이템 수가 달라도
+    // capacity가 부족할 때만 내부 배열이 확장된다.
     items.pushBack(item);
 }
 
 bool Room::takeItem(const std::string& itemName, Item& output) {
+    // 아이템 이름을 찾기 위해 현재 저장된 원소를 인덱스로 순회한다.
+    // 찾은 뒤 removeAt으로 빈 칸을 메워 방 목록을 compact하게 유지한다.
     for (int i = 0; i < items.size(); ++i) {
         if (items[i].getName() == itemName) {
             output = items[i];
@@ -160,10 +164,14 @@ int Room::itemCount() const {
 }
 
 const Item& Room::getItem(int index) const {
+    // 외부 출력/정렬 코드가 i번째 아이템을 바로 가져갈 수 있게 한다.
+    // DynamicArray의 operator[]를 사용하므로 접근 자체는 O(1)이다.
     return items[index];
 }
 
 void Room::addMonster(const Monster& monster) {
+    // 몬스터도 아이템과 같은 이유로 DynamicArray에 저장한다. 방마다 등장 몬스터 수가
+    // 다르지만, 출력과 전투 진입 시에는 번호 기반 접근이 편하다.
     monsters.pushBack(monster);
 }
 
@@ -172,6 +180,7 @@ int Room::monsterCount() const {
 }
 
 const Monster& Room::getMonster(int index) const {
+    // i번째 몬스터를 직접 조회한다. linked list였다면 여기서 O(n) 순회가 필요했을 것이다.
     return monsters[index];
 }
 

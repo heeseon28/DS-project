@@ -11,6 +11,9 @@ private:
     int id;
     std::string name;
     std::string description;
+    // 방마다 아이템/몬스터 개수가 다르므로 고정 배열 대신 DynamicArray를 사용한다.
+    // 동시에 지도 출력, 획득 검사, 몬스터 조회에서는 i번째 원소 접근이 필요하므로
+    // linked list보다 O(1) 인덱스 접근이 가능한 구조가 더 잘 맞는다.
     DynamicArray<Item> items;
     DynamicArray<Monster> monsters;
     bool visited;

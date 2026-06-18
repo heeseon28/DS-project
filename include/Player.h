@@ -27,6 +27,8 @@ private:
     int equipmentAttackBonus;
     int equipmentDefenseBonus;
     Inventory inventory;
+    // 이동 직전의 roomId/x/y를 Stack에 저장한다. undo는 가장 최근 이동부터
+    // 되돌려야 하므로 FIFO Queue가 아니라 LIFO Stack이 맞다.
     Stack<MoveRecord> moveHistory;
 
 public:

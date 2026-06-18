@@ -193,6 +193,8 @@ void BattleEntity::clearStatus()
 
 int BattleEntity::getEffectiveSpeed() const
 {
+    // 마비 상태는 행동 순서 결정에 쓰이는 speed를 절반으로 낮춘다.
+    // 원래 speed 값은 보존하고, 전투 턴 계산에서만 effective 값을 사용한다.
     if (status == StatusCondition::Paralysis)
     {
         return speed / 2;
@@ -508,6 +510,8 @@ bool BattleSystem::tryRun(PlayerBattle &player)
 
 void BattleSystem::enqueueTurnActions(PlayerBattle &player, EnemyBattle &enemy, BattleActionType playerAction)
 {
+    // 이 함수는 행동을 실행하지 않고 Queue에 "예약"만 한다.
+    // 회복/도망/포획 같은 특별 행동은 먼저 넣고, 일반 공격은 effective speed로 순서를 정한다.
     BattleAction playerBattleAction;
     playerBattleAction.type = playerAction;
 
@@ -566,6 +570,8 @@ void BattleSystem::enqueueTurnActions(PlayerBattle &player, EnemyBattle &enemy, 
     */
     if (player.getEffectiveSpeed() >= enemy.getEffectiveSpeed())
     {
+        // 속도가 같으면 플레이어를 먼저 넣는다. Queue는 이 결정을 바꾸지 않고
+        // dequeue 순서대로 processAction에 전달한다.
         actionQueue.enqueue(playerBattleAction);
         actionQueue.enqueue(enemyBattleAction);
     }
@@ -623,6 +629,8 @@ void BattleSystem::processAction(
     EnemyBattle &enemy,
     bool &battleEnded)
 {
+    // Queue에서 꺼낸 행동 하나만 처리한다. battleEnded가 true가 되면 같은 턴에
+    // 남아 있던 행동은 실행하지 않아 포획 성공/도망 성공/기절 후 추가 공격을 막는다.
     if (battleEnded)
     {
         return;
@@ -820,11 +828,14 @@ bool BattleSystem::startBattle(PlayerBattle &player, EnemyBattle &enemy)
             continue;
         }
 
+        // 사용자 입력을 BattleAction으로 바꾸고, 이번 턴의 실행 순서를 Queue에 예약한다.
         enqueueTurnActions(player, enemy, playerAction);
 
         bool battleEnded = false;
         BattleAction currentAction;
 
+        // enqueueTurnActions에서 정해 둔 순서를 FIFO로 꺼내 실행한다.
+        // 도망/포획 성공처럼 전투가 끝나면 남은 EnemyAttack은 실행되지 않는다.
         while (actionQueue.dequeue(currentAction))
         {
             processAction(currentAction, player, enemy, battleEnded);

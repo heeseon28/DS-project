@@ -51,12 +51,19 @@ private:
         int targetY;
     };
 
+    // 던전 전체 연결 관계를 Graph로 저장한다. 방은 node, 방향/gate 이동은 edge이다.
     DungeonGraph dungeon;
+    // Player 내부에는 linked-list Inventory와 Stack 기반 이동 기록이 함께 들어 있다.
     Player player;
+    // 준비된 이벤트를 FIFO로 처리한다. 현재는 전체 이벤트 엔진이라기보다
+    // Queue 자료구조가 게임 상태 변화에 연결되는 예시 역할을 한다.
     Queue<GameEvent> eventQueue;
+    // 게임 종료 시 점수를 삽입하고, reverse inorder로 랭킹을 내림차순 출력한다.
     ScoreTree scoreTree;
     EncounterSymbol encounters[MAX_ENCOUNTERS];
     ItemSymbol itemSymbols[MAX_ITEM_SYMBOLS];
+    // 도감은 포획한 포켓몬을 저장하는 고정 배열이다. 출력 시에는 필요에 따라
+    // 임시 배열로 복사해 번호순 정렬을 수행한다.
     PokedexEntry pokedex[MAX_POKEDEX];
     GateRecord gateRecords[MAX_GATE_RECORDS];
     int encounterCount;

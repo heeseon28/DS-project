@@ -631,6 +631,8 @@ void Game::showPlayerStatus() const
 // 방, 게이트, 아이템, 인카운터, 체육관 이벤트까지 초기 월드를 구성한다.
 void Game::buildSampleWorld()
 {
+    // addRoom은 DungeonGraph에 node를 추가하고 roomId를 돌려준다.
+    // 이후 방향 edge와 gate edge는 이 id를 기준으로 연결된다.
     int pallet = dungeon.addRoom("태초마을", "모험이 시작되는 평화로운 마을이다.", 0, -1);
     int route1 = dungeon.addRoom("1번 도로", "야생 포켓몬이 모습을 드러내는 풀숲 길이다.", 30, -1);
     // 이벤트 트리거를 제거: 걸음 기반 자동 이벤트를 비활성화합니다.
@@ -668,6 +670,8 @@ void Game::buildSampleWorld()
     addRandomRoomItem(viridian, BASIC_ITEM_POOL, BASIC_ITEM_POOL_COUNT);
 
     // Queue 자료구조 시연용 이벤트: E 키로 하나씩 dequeue되어 점수/체력에 반영된다.
+    // 현재 모든 NPC/아이템 발생을 총괄하는 완전한 이벤트 시스템은 아니고,
+    // FIFO 이벤트 처리 구조를 게임 상태 변화에 연결한 예시이다.
     eventQueue.enqueue(GameEvent("태초마을 게시판에서 탐험 팁을 확인했다. 점수 +10", 10, 0));
     eventQueue.enqueue(GameEvent("상비약을 정리하며 컨디션을 회복했다. 체력 +10", 0, 10));
 
@@ -770,7 +774,8 @@ void Game::buildSampleWorld()
 // BST 자료구조 시연을 위해 기본 점수 데이터를 넣는다.
 void Game::seedScores()
 {
-    // BST 시연용 초기 점수 기록. V 키와 종료 화면에서 내림차순으로 출력된다.
+    // BST 시연용 초기 점수 기록. V 키와 종료 화면에서 right-root-left 순회로
+    // 내림차순 출력된다. 점수 삽입 순서에 따라 트리가 편향될 수 있다는 한계는 남아 있다.
     scoreTree.insert(ScoreRecord("Red", 80));
     scoreTree.insert(ScoreRecord("Blue", 65));
     scoreTree.insert(ScoreRecord("Green", 95));
@@ -1225,6 +1230,7 @@ void Game::showPokedex() const
     if (choice == "2")
     {
         // 도감 번호 순 정렬은 STL sort 대신 직접 선택 정렬로 구현한다.
+        // 원본 pokedex 배열은 포획 순서를 보존해야 하므로 임시 배열 sorted에 복사한 뒤 정렬한다.
         PokedexEntry sorted[MAX_POKEDEX];
         for (int i = 0; i < pokedexCount; ++i)
         {
@@ -1506,6 +1512,8 @@ void Game::move(Direction direction)
         return;
     }
 
+    // 이동 성공 후, 이동 전 위치를 Stack에 저장한다. undo 명령은 이 기록을 pop해서
+    // 가장 최근 이동부터 되돌린다.
     player.saveMoveHistory(oldRoomId, oldX, oldY);
     player.addScore(1);
 
@@ -1894,6 +1902,8 @@ void Game::processOneEvent()
         return;
     }
 
+    // dequeue에 성공한 이벤트만 적용한다. FIFO 구조라서 준비된 이벤트가
+    // 등록된 순서 그대로 플레이어 상태에 반영된다.
     std::cout << "이벤트: " << event.description << "\n";
     player.addScore(event.scoreDelta);
     player.changeHealth(event.healthDelta);
@@ -1924,6 +1934,8 @@ void Game::showSortedRoomItems() const
         return;
     }
 
+    // Room 내부 DynamicArray의 원본 순서는 그대로 두고, 출력용 배열만 복사해 정렬한다.
+    // 따라서 방의 실제 아이템 저장 구조와 화면 표시 순서를 분리할 수 있다.
     Item *items = new Item[count];
     for (int i = 0; i < count; ++i)
     {
@@ -1953,6 +1965,7 @@ void Game::run()
     }
 
     BgmPlayer::stop();
+    // 종료 시 현재 플레이어 점수를 BST에 삽입한 뒤 내림차순 랭킹을 출력한다.
     scoreTree.insert(ScoreRecord(player.getName(), player.getScore()));
     clearScreen();
     std::cout << "최종 상태:\n";

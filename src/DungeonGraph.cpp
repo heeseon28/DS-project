@@ -2,6 +2,8 @@
 #include <iostream>
 
 DungeonGraph::DungeonGraph() : roomCount(0) {
+    // adjacency의 -1은 해당 방향으로 연결된 방이 없다는 뜻이다.
+    // gateCounts는 각 방에 등록된 좌표형 gate 개수를 따로 관리한다.
     for (int i = 0; i < MAX_ROOMS; ++i) {
         rooms[i] = nullptr;
         gateCounts[i] = 0;
@@ -12,6 +14,7 @@ DungeonGraph::DungeonGraph() : roomCount(0) {
 }
 
 DungeonGraph::~DungeonGraph() {
+    // addRoom에서 new로 만든 Room 객체를 Graph가 소유하므로 소멸자에서 해제한다.
     for (int i = 0; i < roomCount; ++i) {
         delete rooms[i];
         rooms[i] = nullptr;
@@ -35,6 +38,8 @@ int DungeonGraph::addRoom(
         return -1;
     }
 
+    // roomId는 배열 인덱스와 같게 만든다. 이렇게 하면 현재 방 id로 Room*을
+    // O(1)에 찾을 수 있다.
     int newId = roomCount;
     rooms[newId] = new Room(newId, name, description, encounterRate, eventTriggerStep);
     ++roomCount;
@@ -47,9 +52,11 @@ bool DungeonGraph::connectRooms(int fromRoomId, Direction direction, int toRoomI
         return false;
     }
 
+    // 방향은 네 개로 고정되어 있으므로 adjacency[from][direction] 조회는 O(1)이다.
     adjacency[fromRoomId][directionIndex] = toRoomId;
 
     if (bidirectional) {
+        // 양방향 통로라면 반대편 방에도 reverse edge를 자동으로 등록한다.
         Direction opposite = oppositeDirection(direction);
         int oppositeIndex = directionToIndex(opposite);
         if (oppositeIndex != -1) {
@@ -77,6 +84,8 @@ void DungeonGraph::connectRoomsByGate(int fromId, int fromX, int fromY, int toId
         return;
     }
 
+    // gate는 "방향"이 아니라 특정 좌표를 밟는 이벤트형 edge이다.
+    // 예: Route 1의 특정 입구 좌표 -> Viridian City의 시작 좌표.
     int index = gateCounts[fromId];
     gates[fromId][index].entryPos = {fromX, fromY};
     gates[fromId][index].targetRoomId = toId;
@@ -95,6 +104,8 @@ bool DungeonGraph::checkGate(
         return false;
     }
 
+    // 현재 방에 등록된 gate만 확인한다. 방마다 gate 수를 작게 제한했기 때문에
+    // 선형 탐색이어도 이동 처리 비용이 안정적이다.
     for (int i = 0; i < gateCounts[currentRoomId]; ++i) {
         const Gate& gate = gates[currentRoomId][i];
         if (gate.entryPos.x == x && gate.entryPos.y == y) {

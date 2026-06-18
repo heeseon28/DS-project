@@ -4,7 +4,9 @@
 #include <iostream>
 
 // Linked-node FIFO queue.
-// GameEvent 처리와 BattleAction 순서 결정에 사용된다.
+// GameEvent와 BattleAction처럼 "먼저 준비된 작업을 먼저 처리"해야 하는 곳에 사용된다.
+// Queue가 우선순위를 직접 계산하는 것은 아니며, enqueue 전에 이미 결정된 순서를
+// 보존했다가 dequeue로 하나씩 실행해 순서 결정과 실제 처리를 분리한다.
 template <typename T>
 class Queue {
 private:
@@ -38,6 +40,8 @@ public:
     }
 
     void enqueue(const T& value) {
+        // rearNode 뒤에 새 Node를 붙인다. 배열처럼 원소를 이동하거나 고정 용량을
+        // 걱정하지 않아도 되므로 삽입은 O(1)이다.
         Node* newNode = new Node(value);
 
         // 첫 삽입이면 front와 rear가 같은 노드를 가리킨다.
@@ -59,6 +63,8 @@ public:
             return false;
         }
 
+        // frontNode가 가장 오래전에 들어온 값이다. 값을 output에 복사한 뒤
+        // frontNode를 다음 노드로 옮기면 FIFO 순서가 유지된다.
         Node* oldFront = frontNode;
         output = oldFront->value;
         frontNode = frontNode->next;
@@ -84,7 +90,8 @@ public:
     }
 
     void clear() {
-        // 남은 노드를 앞에서부터 모두 삭제한다.
+        // 남은 노드를 앞에서부터 모두 삭제한다. rearNode도 nullptr로 맞춰
+        // 완전히 빈 Queue 상태를 만든다.
         while (frontNode != nullptr) {
             Node* old = frontNode;
             frontNode = frontNode->next;
