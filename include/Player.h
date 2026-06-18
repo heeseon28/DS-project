@@ -35,6 +35,7 @@ public:
     Player(const std::string& name = "Explorer");
 
     std::string getName() const;
+    void setName(const std::string& name);
     int getHealth() const;
     int getScore() const;
     int getCurrentRoomId() const;

@@ -5,6 +5,7 @@
 #include "PokemonFactory.h"
 #include "ds/HuffmanCodec.h"
 #include "ds/Sorting.h"
+#include <fstream>
 #include <cctype>
 #include <cstdlib>
 #include <ctime>
@@ -339,7 +340,7 @@ Game::Game()
     {
         player.getInventory().addItem(createItem("풀회복약"));
     }
-    seedScores();
+    loadScores();
 }
 
 // 시작 화면과 intro BGM을 출력하고, Enter 입력 후 실제 게임으로 넘어간다.
@@ -386,6 +387,14 @@ void Game::showIntro()
     std::getline(std::cin, unused);
 
     BgmPlayer::stop();
+    clearScreen();
+
+    std::cout << "플레이어 이름을 입력하세요 (Enter → Explorer): ";
+    std::string inputName;
+    std::getline(std::cin, inputName);
+    if (!inputName.empty()) {
+        player.setName(inputName);
+    }
     clearScreen();
 }
 
@@ -771,14 +780,44 @@ void Game::buildSampleWorld()
     }
 }
 
-// BST 자료구조 시연을 위해 기본 점수 데이터를 넣는다.
-void Game::seedScores()
+// scores.txt에서 기존 점수를 읽어 BST에 삽입한다.
+// 파일이 없거나 비어 있으면 샘플 데이터를 넣고 파일에도 기록한다.
+void Game::loadScores()
 {
-    // BST 시연용 초기 점수 기록. V 키와 종료 화면에서 right-root-left 순회로
-    // 내림차순 출력된다. 점수 삽입 순서에 따라 트리가 편향될 수 있다는 한계는 남아 있다.
-    scoreTree.insert(ScoreRecord("Red", 80));
-    scoreTree.insert(ScoreRecord("Blue", 65));
-    scoreTree.insert(ScoreRecord("Green", 95));
+    // 파일에서 읽은 점수와 기본 샘플 점수를 모두 ScoreTree에 삽입한다.
+    // V 키와 종료 화면에서는 right-root-left 순회로 높은 점수부터 출력된다.
+    std::ifstream in("scores.txt");
+    bool hasData = false;
+
+    if (in.is_open()) {
+        std::string name;
+        int score;
+        while (in >> name >> score) {
+            scoreTree.insert(ScoreRecord(name, score));
+            hasData = true;
+        }
+        in.close();
+    }
+
+    if (!hasData) {
+        scoreTree.insert(ScoreRecord("Red", 80));
+        scoreTree.insert(ScoreRecord("Blue", 65));
+        scoreTree.insert(ScoreRecord("Green", 95));
+
+        std::ofstream out("scores.txt");
+        if (out.is_open()) {
+            out << "Red 80\n" << "Blue 65\n" << "Green 95\n";
+        }
+    }
+}
+
+// 플레이어 점수를 scores.txt에 한 줄 추가한다.
+void Game::saveScore()
+{
+    std::ofstream out("scores.txt", std::ios::app);
+    if (out.is_open()) {
+        out << player.getName() << " " << player.getScore() << "\n";
+    }
 }
 
 // Room의 아이템 목록과 화면용 ItemSymbol 배열을 동시에 갱신한다.
@@ -1229,34 +1268,15 @@ void Game::showPokedex() const
 
     if (choice == "2")
     {
-        // 도감 번호 순 정렬은 STL sort 대신 직접 선택 정렬로 구현한다.
-        // 원본 pokedex 배열은 포획 순서를 보존해야 하므로 임시 배열 sorted에 복사한 뒤 정렬한다.
+        // 원본 pokedex 배열은 포획 순서를 보존해야 하므로 임시 배열 sorted에 복사한 뒤
+        // 공용 quicksort helper로 도감 번호순 정렬을 수행한다.
         PokedexEntry sorted[MAX_POKEDEX];
         for (int i = 0; i < pokedexCount; ++i)
         {
             sorted[i] = pokedex[i];
         }
 
-        for (int i = 0; i < pokedexCount - 1; ++i)
-        {
-            int minIndex = i;
-            for (int j = i + 1; j < pokedexCount; ++j)
-            {
-                int currentNumber = getPokemonNumber(sorted[j].data->name);
-                int minNumber = getPokemonNumber(sorted[minIndex].data->name);
-                if (currentNumber < minNumber)
-                {
-                    minIndex = j;
-                }
-            }
-
-            if (minIndex != i)
-            {
-                PokedexEntry temp = sorted[i];
-                sorted[i] = sorted[minIndex];
-                sorted[minIndex] = temp;
-            }
-        }
+        sortPokedexByNumber(sorted, pokedexCount);
 
         std::cout << "\n[도감 번호 순]\n";
         printPokedexEntries(sorted, pokedexCount);
@@ -1942,9 +1962,9 @@ void Game::showSortedRoomItems() const
         items[i] = room->getItem(i);
     }
 
-    sortItemsByValueDescending(items, count);
+    sortItemsByNameAscending(items, count);
 
-    std::cout << "현재 지역 아이템 가치순:\n";
+    std::cout << "현재 지역 아이템 이름순:\n";
     for (int i = 0; i < count; ++i)
     {
         std::cout << "  - ";
@@ -1967,9 +1987,14 @@ void Game::run()
     BgmPlayer::stop();
     // 종료 시 현재 플레이어 점수를 BST에 삽입한 뒤 내림차순 랭킹을 출력한다.
     scoreTree.insert(ScoreRecord(player.getName(), player.getScore()));
+    saveScore();
+
     clearScreen();
     std::cout << "최종 상태:\n";
     showPlayerStatus();
+
+    int rank = scoreTree.getRank(player.getScore());
+    std::cout << "\n" << player.getName() << "의 최종 순위: " << rank << "위 / " << scoreTree.size() << "명\n";
     std::cout << "\n최종 점수 기록:\n";
     scoreTree.printDescending();
     std::cout << "게임을 종료합니다.\n";

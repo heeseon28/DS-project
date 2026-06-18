@@ -16,6 +16,11 @@ struct PokemonData {
     const HuffmanEncodedSprite* sprite;
 };
 
+struct PokedexEntry {
+    const PokemonData* data;
+    int caughtOrder;
+};
+
 const PokemonData* findPokemonData(const std::string& name);
 const PokemonData& getDefaultPokemonData();
 const PokemonData& getRandomPokemonData();

@@ -1,4 +1,5 @@
 #include "ds/Inventory.h"
+#include "ds/Sorting.h"
 #include <iostream>
 
 Inventory::Inventory() : head(nullptr), count(0) {}
@@ -128,20 +129,8 @@ void Inventory::print(const std::string& equippedWeapon, const std::string& equi
     if (sorted) {
         // 출력 전용 정렬이다. 실제 linked list의 Node 순서는 그대로 두기 때문에
         // 장비 상태나 삭제 로직에는 영향을 주지 않는다.
-        // STL 정렬 대신 직접 선택 정렬을 사용한다.
-        for (int i = 0; i < count - 1; ++i) {
-            int bestIndex = i;
-            for (int j = i + 1; j < count; ++j) {
-                if (items[j]->getName() < items[bestIndex]->getName()) {
-                    bestIndex = j;
-                }
-            }
-            if (bestIndex != i) {
-                const Item* temp = items[i];
-                items[i] = items[bestIndex];
-                items[bestIndex] = temp;
-            }
-        }
+        // 공용 quicksort helper를 사용해 포인터 배열만 이름순으로 정렬한다.
+        sortItemsByNameAscending(items, count);
     }
 
     for (int i = 0; i < count; ++i) {
